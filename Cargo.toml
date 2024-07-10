@@ -1,0 +1,42 @@
+[package]
+name = "exfat-utils"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "dumpexfat"
+path = "src/dump/main.rs"
+
+[[bin]]
+name = "exfatattrib"
+path = "src/attrib/main.rs"
+
+[[bin]]
+name = "exfatfsck"
+path = "src/fsck/main.rs"
+
+[[bin]]
+name = "exfatlabel"
+path = "src/label/main.rs"
+
+[[bin]]
+name = "mkexfatfs"
+path = "src/mkfs/main.rs"
+
+[[bin]]
+name = "modexfatfs"
+path = "src/modfs/main.rs"
+
+[dependencies]
+bytemuck = "1.16.0"
+byteorder = "1.5.0"
+env_logger = "0.11.3"
+getopts = "0.2.21"
+log = "0.4.22"
+nix = { version = "0.29.0", features = ["fs"] }
+path-clean = "1.0.1"
+walkdir = "2.5.0"
+
+libexfat = { git = "https://github.com/kusumi/libexfat" }
