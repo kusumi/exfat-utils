@@ -1,3 +1,9 @@
+v0.2.0
+======
+- Remove --debug
+- Support DEBUG
+- Minor fixes
+
 v0.1.0
 ======
 - Initial release

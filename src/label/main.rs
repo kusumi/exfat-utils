@@ -12,13 +12,17 @@ fn usage(prog: &str, opts: &getopts::Options) {
 }
 
 fn main() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
     let mut opts = getopts::Options::new();
     opts.optflag("V", "version", "Print version and copyright.");
     opts.optflag("h", "help", "Print usage.");
-    opts.optflag("", "debug", "");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
@@ -37,15 +41,8 @@ fn main() {
         std::process::exit(0);
     }
 
-    let debug = matches.opt_present("debug");
-
-    if let Err(e) = exfat_utils::util::init_std_logger(debug) {
-        log::error!("{e}");
-        std::process::exit(1);
-    }
-
     let mut mopts = vec![];
-    if debug {
+    if exfat_utils::util::is_debug_set() {
         mopts.push("--debug");
     }
 

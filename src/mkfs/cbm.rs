@@ -41,16 +41,16 @@ impl mkexfat::FsObjectTrait for FsObject {
                 + libexfat::div_round_up!(rootdir.get_size(fmap), self.param.cluster_size),
         )
         .unwrap();
-        let bitmap_size = libexfat::round_up!(allocated_clusters, CHAR_BIT); // in count
-        let mut bitmap = libexfat::bitmap::bmap_alloc(bitmap_size);
-        for i in 0..bitmap_size {
+        let count = libexfat::round_up!(allocated_clusters, CHAR_BIT);
+        let mut bitmap = libexfat::bitmap::alloc(count);
+        for i in 0..count {
             if i < allocated_clusters {
-                libexfat::bitmap::bmap_set(&mut bitmap, i);
+                libexfat::bitmap::set(&mut bitmap, i);
             }
         }
 
         if let Err(e) = dev.write(&bitmap) {
-            log::error!("failed to write bitmap of {} bytes", bitmap_size / CHAR_BIT);
+            log::error!("failed to write bitmap of {} bytes", count / CHAR_BIT);
             return Err(e);
         }
         Ok(())

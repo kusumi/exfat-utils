@@ -10,12 +10,11 @@ fn print_version() {
 #[derive(Debug)]
 struct ModfsParam {
     pc: dir::PathConflict,
-    debug: bool,
 }
 
 impl ModfsParam {
-    fn new(pc: dir::PathConflict, debug: bool) -> Self {
-        Self { pc, debug }
+    fn new(pc: dir::PathConflict) -> Self {
+        Self { pc }
     }
 }
 
@@ -72,7 +71,7 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
     }
 
     let mut mopts = vec![];
-    if param.debug {
+    if exfat_utils::util::is_debug_set() {
         mopts.push("--debug");
     }
     let mut ef = libexfat::mount(spec, &mopts)?;
@@ -141,6 +140,11 @@ fn usage(prog: &str, opts: &getopts::Options) {
 }
 
 fn main() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
@@ -160,7 +164,6 @@ fn main() {
     );
     opts.optflag("V", "version", "Print version and copyright.");
     opts.optflag("h", "help", "Print usage.");
-    opts.optflag("", "debug", "");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
@@ -191,12 +194,6 @@ fn main() {
         },
         None => dir::PathConflict::Fail,
     };
-    let debug = matches.opt_present("debug");
-
-    if let Err(e) = exfat_utils::util::init_std_logger(debug) {
-        log::error!("{e}");
-        std::process::exit(1);
-    }
 
     let args = matches.free;
     if args.len() < 2 {
@@ -204,10 +201,9 @@ fn main() {
         std::process::exit(1);
     }
 
-    let param = ModfsParam::new(pc, debug);
-    if param.debug {
-        println!("param {param:?}");
-    }
+    let param = ModfsParam::new(pc);
+    log::debug!("param {param:?}");
+
     if let Err(e) = modfs(&args[0], &args[1..], &param) {
         log::error!("{e}");
         std::process::exit(1);

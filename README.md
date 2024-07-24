@@ -1,4 +1,4 @@
-exfat-utils ([v0.1.0](https://github.com/kusumi/exfat-utils/releases/tag/v0.1.0))
+exfat-utils ([v0.2.0](https://github.com/kusumi/exfat-utils/releases/tag/v0.2.0))
 ========
 
 ## About
@@ -35,13 +35,11 @@ dumpexfat
                             length (in bytes).
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 exfatattrib
 
     $ ./target/release/exfatattrib
-    Usage: ./target/release/exfatattrib -d <device> <file>
-           ./target/release/exfatattrib [FLAGS] -d <device> <file>
+    Usage: ./target/release/exfatattrib [FLAGS] -d <device> <file>
     
     Options:
         -d <device>         The path to an unmounted disk partition or disk image
@@ -57,7 +55,6 @@ exfatattrib
         -A                  Clear archive flag
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 exfatfsck
 
@@ -74,7 +71,6 @@ exfatfsck
         -y                  Same as -a for compatibility with other *fsck.
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 exfatlabel
 
@@ -84,7 +80,6 @@ exfatlabel
     Options:
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 mkexfatfs
 
@@ -112,7 +107,6 @@ mkexfatfs
                             GB, 128 KB if volume size is 32 GB or larger.
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 modexfatfs
 
@@ -131,7 +125,6 @@ modexfatfs
                             Defaults to "fail".
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
-            --debug
 
 ## License
 

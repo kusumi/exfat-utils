@@ -87,13 +87,13 @@ fn dump_sb(spec: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn dump_full(spec: &str, used_sectors: bool, debug: bool) -> nix::Result<()> {
+fn dump_full(spec: &str, used_sectors: bool) -> nix::Result<()> {
     let mut mopts = vec!["--mode", "ro"];
-    if debug {
+    if exfat_utils::util::is_debug_set() {
         mopts.push("--debug");
     }
 
-    let mut ef = libexfat::mount(spec, &mopts)?;
+    let ef = libexfat::mount(spec, &mopts)?;
     let free_clusters = ef.get_free_clusters();
     let sb = ef.get_super_block();
     let free_sectors = free_clusters << sb.spc_bits;
@@ -118,9 +118,9 @@ fn dump_full(spec: &str, used_sectors: bool, debug: bool) -> nix::Result<()> {
     Ok(())
 }
 
-fn dump_file_fragments(spec: &str, path: &str, debug: bool) -> nix::Result<()> {
+fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
     let mut mopts = vec!["--mode", "ro"];
-    if debug {
+    if exfat_utils::util::is_debug_set() {
         mopts.push("--debug");
     }
 
@@ -172,6 +172,11 @@ fn usage(prog: &str, opts: &getopts::Options) {
 }
 
 fn main() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
@@ -197,7 +202,6 @@ fn main() {
     );
     opts.optflag("V", "version", "Print version and copyright.");
     opts.optflag("h", "help", "Print usage.");
-    opts.optflag("", "debug", "");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
@@ -219,12 +223,6 @@ fn main() {
     let sb_only = matches.opt_present("s");
     let used_sectors = matches.opt_present("u");
     let file_path = matches.opt_str("f");
-    let debug = matches.opt_present("debug");
-
-    if let Err(e) = exfat_utils::util::init_std_logger(debug) {
-        log::error!("{e}");
-        std::process::exit(1);
-    }
 
     let args = matches.free;
     if args.len() != 1 {
@@ -234,7 +232,7 @@ fn main() {
     let spec = &args[0];
 
     if let Some(file_path) = file_path {
-        if let Err(e) = dump_file_fragments(spec, &file_path, debug) {
+        if let Err(e) = dump_file_fragments(spec, &file_path) {
             log::error!("{e}");
             std::process::exit(1);
         }
@@ -244,7 +242,7 @@ fn main() {
             std::process::exit(1);
         }
     } else if true {
-        if let Err(e) = dump_full(spec, used_sectors, debug) {
+        if let Err(e) = dump_full(spec, used_sectors) {
             log::error!("{e}");
             std::process::exit(1);
         }

@@ -171,6 +171,11 @@ fn usage(prog: &str, opts: &getopts::Options) {
 }
 
 fn main() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
@@ -210,7 +215,6 @@ fn main() {
     );
     opts.optflag("V", "version", "Print version and copyright.");
     opts.optflag("h", "help", "Print usage.");
-    opts.optflag("", "debug", "");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
@@ -229,15 +233,22 @@ fn main() {
         std::process::exit(0);
     }
 
-    // XXX relan/exfat allows 0x prefix
     let volume_serial = match matches.opt_str("i") {
-        Some(v) => match u32::from_str_radix(&v, 16) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{e}");
-                std::process::exit(1);
+        Some(v) => {
+            let v = v.to_lowercase();
+            let v = if let Some(v) = v.strip_prefix("0x") {
+                v.to_string()
+            } else {
+                v
+            };
+            match u32::from_str_radix(&v, 16) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("{e}");
+                    std::process::exit(1);
+                }
             }
-        },
+        }
         None => 0,
     };
     let volume_label = matches.opt_str("n").unwrap_or_default();
@@ -268,12 +279,6 @@ fn main() {
         },
         None => -1,
     };
-    let debug = matches.opt_present("debug");
-
-    if let Err(e) = exfat_utils::util::init_std_logger(debug) {
-        log::error!("{e}");
-        std::process::exit(1);
-    }
 
     let args = matches.free;
     if args.len() != 1 {
