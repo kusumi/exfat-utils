@@ -24,6 +24,7 @@ pub fn print_version(prog: &str) {
     );
 }
 
+/// # Panics
 #[must_use]
 pub fn get_basename(f: &str) -> String {
     std::path::Path::new(&f)
@@ -39,7 +40,7 @@ const DEBUG: &str = "DEBUG";
 #[must_use]
 pub fn get_debug_level() -> i32 {
     match std::env::var(DEBUG) {
-        Ok(v) => v.parse::<i32>().unwrap_or(-1),
+        Ok(v) => v.parse().unwrap_or(-1),
         Err(_) => -1,
     }
 }
@@ -49,6 +50,7 @@ pub fn is_debug_set() -> bool {
     get_debug_level() > 0
 }
 
+/// # Errors
 pub fn init_std_logger() -> Result<(), log::SetLoggerError> {
     let env = env_logger::Env::default()
         .filter_or("RUST_LOG", if is_debug_set() { "trace" } else { "info" });

@@ -253,7 +253,7 @@ fn main() {
     };
     let volume_label = matches.opt_str("n").unwrap_or_default();
     let first_sector = match matches.opt_str("p") {
-        Some(v) => match v.parse::<u64>() {
+        Some(v) => match v.parse() {
             Ok(v) => v,
             Err(e) => {
                 log::error!("{e}");
@@ -263,7 +263,7 @@ fn main() {
         None => 0,
     };
     let spc_bits = match matches.opt_str("s") {
-        Some(v) => match v.parse::<i32>() {
+        Some(v) => match v.parse() {
             Ok(x) => {
                 let spc_bits = logarithm2(x);
                 if spc_bits < 0 {

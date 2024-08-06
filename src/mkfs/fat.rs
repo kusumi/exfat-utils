@@ -9,7 +9,6 @@ pub(crate) struct FsObject {
 
 impl FsObject {
     fn fat_write_entry(
-        &self,
         dev: &mut libexfat::device::ExfatDevice,
         cluster: u32,
         value: u32,
@@ -31,12 +30,12 @@ impl FsObject {
             + u32::try_from(libexfat::div_round_up!(length, self.param.cluster_size)).unwrap();
         let mut cluster = cluster;
         while cluster < end - 1 {
-            cluster = self.fat_write_entry(dev, cluster, cluster + 1)?;
+            cluster = Self::fat_write_entry(dev, cluster, cluster + 1)?;
             if cluster == 0 {
                 return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
             }
         }
-        self.fat_write_entry(dev, cluster, libexfat::exfatfs::EXFAT_CLUSTER_END)
+        Self::fat_write_entry(dev, cluster, libexfat::exfatfs::EXFAT_CLUSTER_END)
     }
 }
 
@@ -66,8 +65,8 @@ impl mkexfat::FsObjectTrait for FsObject {
         let uct = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Uct);
         let rootdir = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Rootdir);
 
-        let c = self.fat_write_entry(dev, 0, 0xffff_fff8)?; // media type
-        let c = self.fat_write_entry(dev, c, 0xffff_ffff)?; // some weird constant
+        let c = Self::fat_write_entry(dev, 0, 0xffff_fff8)?; // media type
+        let c = Self::fat_write_entry(dev, c, 0xffff_ffff)?; // some weird constant
         let c = self.fat_write_entries(dev, c, cbm.get_size(fmap))?;
         let c = self.fat_write_entries(dev, c, uct.get_size(fmap))?;
         self.fat_write_entries(dev, c, rootdir.get_size(fmap))?;
