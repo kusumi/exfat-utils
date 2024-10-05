@@ -7,11 +7,13 @@ pub(crate) struct FsObject {
     param: MkfsParam,
 }
 
-unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
-    ::core::slice::from_raw_parts(
-        std::ptr::from_ref::<T>(p).cast::<u8>(),
-        ::core::mem::size_of::<T>(),
-    )
+fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+    unsafe {
+        ::core::slice::from_raw_parts(
+            std::ptr::from_ref::<T>(p).cast::<u8>(),
+            ::core::mem::size_of::<T>(),
+        )
+    }
 }
 
 impl FsObject {
@@ -97,7 +99,7 @@ impl mkexfat::FsObjectTrait for FsObject {
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> std::io::Result<()> {
         let sb = self.init_sb(fmap);
-        let buf = unsafe { any_as_u8_slice(&sb) };
+        let buf = any_as_u8_slice(&sb);
         if let Err(e) = dev.write(buf) {
             log::error!("failed to write super block sector");
             return Err(e);

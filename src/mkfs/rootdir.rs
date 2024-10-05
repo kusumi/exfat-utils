@@ -39,9 +39,9 @@ impl FsObject {
         &self,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> libexfat::exfatfs::ExfatEntryUpcase {
-        let mut sum = 0;
+        let mut sum = 0u32;
         for i in 0..uctc::UPCASE_TABLE.len() {
-            sum = ((sum << 31) | (sum >> 1)) + u32::from(uctc::UPCASE_TABLE[i]);
+            sum = sum.rotate_right(1) + u32::from(uctc::UPCASE_TABLE[i]);
         }
         let mut upcase = libexfat::exfatfs::ExfatEntryUpcase::new();
         upcase.typ = libexfat::exfatfs::EXFAT_ENTRY_UPCASE;

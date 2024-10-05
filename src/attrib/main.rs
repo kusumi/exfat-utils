@@ -19,7 +19,7 @@ fn attribute(
     clear_flags: u16,
 ) -> nix::Result<()> {
     if (add_flags | clear_flags) != 0 {
-        let node = exfat_utils::get_mut_node!(ef, nid);
+        let node = exfat_utils::util::get_node_mut!(ef, nid);
         let mut attrib = node.get_attrib();
         attrib |= add_flags;
         attrib &= !clear_flags;
@@ -29,13 +29,13 @@ fn attribute(
             if let Err(e) = ef.flush_node(nid) {
                 log::error!(
                     "failed to flush changes to {}: {e}",
-                    exfat_utils::get_node!(ef, nid).get_name()
+                    exfat_utils::util::get_node!(ef, nid).get_name()
                 );
                 return Err(e);
             }
         }
     } else {
-        let attrib = exfat_utils::get_node!(ef, nid).get_attrib();
+        let attrib = exfat_utils::util::get_node!(ef, nid).get_attrib();
         print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_RO, "Read-only");
         print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_HIDDEN, "Hidden");
         print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_SYSTEM, "System");
@@ -47,10 +47,10 @@ fn attribute(
     Ok(())
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!("Usage: {prog} [FLAGS] -d <device> <file>"))
+        gopt.usage(&format!("Usage: {prog} [FLAGS] -d <device> <file>"))
     );
 }
 
@@ -63,8 +63,8 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    let mut opts = getopts::Options::new();
-    opts.optopt(
+    let mut gopt = getopts::Options::new();
+    gopt.optopt(
         "d",
         "",
         "The path to an unmounted disk partition or disk image file containing \
@@ -72,22 +72,22 @@ fn main() {
         This option is required.",
         "<device>",
     );
-    opts.optflag("r", "", "Set read-only flag");
-    opts.optflag("R", "", "Clear read-only flag");
-    opts.optflag("i", "", "Set hidden flag (mnemonic: invisible)");
-    opts.optflag("I", "", "Clear hidden flag");
-    opts.optflag("s", "", "Set system flag");
-    opts.optflag("S", "", "Clear system flag");
-    opts.optflag("a", "", "Set archive flag");
-    opts.optflag("A", "", "Clear archive flag");
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    gopt.optflag("r", "", "Set read-only flag");
+    gopt.optflag("R", "", "Clear read-only flag");
+    gopt.optflag("i", "", "Set hidden flag (mnemonic: invisible)");
+    gopt.optflag("I", "", "Clear hidden flag");
+    gopt.optflag("s", "", "Set system flag");
+    gopt.optflag("S", "", "Clear system flag");
+    gopt.optflag("a", "", "Set archive flag");
+    gopt.optflag("A", "", "Clear archive flag");
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -96,7 +96,7 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
@@ -135,9 +135,9 @@ fn main() {
         clear_flags |= libexfat::exfatfs::EXFAT_ATTRIB_ARCH;
     }
 
-    let mut mopts = vec![];
+    let mut mopt = vec![];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
 
     if (add_flags & clear_flags) != 0 {
@@ -145,17 +145,17 @@ fn main() {
         std::process::exit(1);
     }
     if (add_flags | clear_flags) == 0 {
-        mopts.extend_from_slice(&["--mode", "ro"]);
+        mopt.extend_from_slice(&["--mode", "ro"]);
     }
 
     let args = matches.free;
     if spec.is_none() || args.len() != 1 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
     let spec = spec.unwrap();
 
-    let mut ef = match libexfat::mount(&spec, &mopts) {
+    let mut ef = match libexfat::mount(&spec, &mopt) {
         Ok(v) => v,
         Err(e) => {
             log::error!("failed to mount {spec}: {e}");
@@ -173,7 +173,7 @@ fn main() {
     };
 
     let result = attribute(&mut ef, nid, add_flags, clear_flags);
-    exfat_utils::get_mut_node!(ef, nid).put();
+    exfat_utils::util::get_node_mut!(ef, nid).put();
     if let Err(e) = result {
         log::error!("{e}");
         std::process::exit(1);

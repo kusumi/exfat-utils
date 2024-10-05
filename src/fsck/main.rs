@@ -27,7 +27,7 @@ fn print_super_block(ef: &libexfat::exfat::Exfat) {
 
 fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> nix::Result<()> {
     let cluster_size = ef.get_cluster_size();
-    let node = exfat_utils::get_node!(ef, nid);
+    let node = exfat_utils::util::get_node!(ef, nid);
     let mut clusters = libexfat::div_round_up!(node.get_size(), cluster_size);
     let mut c = node.get_start_cluster();
 
@@ -36,7 +36,7 @@ fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> nix::Res
         if ef.cluster_invalid(c) {
             log::error!(
                 "file '{}' has invalid cluster {c:#x}",
-                exfat_utils::get_node!(ef, nid).get_name()
+                exfat_utils::util::get_node!(ef, nid).get_name()
             );
             return Err(nix::errno::Errno::EINVAL);
         }
@@ -47,7 +47,7 @@ fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> nix::Res
         ) {
             log::error!(
                 "cluster {c:#x} of file '{}' is not allocated",
-                exfat_utils::get_node!(ef, nid).get_name()
+                exfat_utils::util::get_node!(ef, nid).get_name()
             );
             return Err(nix::errno::Errno::EINVAL);
         }
@@ -61,21 +61,21 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
         Ok(v) => v,
         Err(e) => panic!("directory '{path}' is not found: {e}"),
     };
-    let dnode = exfat_utils::get_node!(ef, dnid);
+    let dnode = exfat_utils::util::get_node!(ef, dnid);
     assert!(
         dnode.is_directory(),
         "'{path}' is not a directory ({:#x})",
         dnode.get_attrib()
     );
     if let Err(e) = nodeck(ef, dnid) {
-        exfat_utils::get_mut_node!(ef, dnid).put();
+        exfat_utils::util::get_node_mut!(ef, dnid).put();
         return Err(e);
     }
 
     let mut c = match ef.opendir_cursor(dnid) {
         Ok(v) => v,
         Err(e) => {
-            exfat_utils::get_mut_node!(ef, dnid).put();
+            exfat_utils::util::get_node_mut!(ef, dnid).put();
             return Err(e);
         }
     };
@@ -88,11 +88,11 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             Err(nix::errno::Errno::ENOENT) => break,
             Err(e) => {
                 ef.closedir_cursor(c);
-                exfat_utils::get_mut_node!(ef, dnid).put();
+                exfat_utils::util::get_node_mut!(ef, dnid).put();
                 return Err(e);
             }
         };
-        let node = exfat_utils::get_node!(ef, nid);
+        let node = exfat_utils::util::get_node!(ef, nid);
         let entry_path = format!("{}/{}", path, node.get_name());
         log::debug!(
             "{}: {}, {} bytes, cluster {}",
@@ -110,9 +110,9 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             let (d, f) = match dirck(ef, &entry_path) {
                 Ok(v) => v,
                 Err(e) => {
-                    exfat_utils::get_mut_node!(ef, nid).put();
+                    exfat_utils::util::get_node_mut!(ef, nid).put();
                     ef.closedir_cursor(c);
-                    exfat_utils::get_mut_node!(ef, dnid).put();
+                    exfat_utils::util::get_node_mut!(ef, dnid).put();
                     return Err(e);
                 }
             };
@@ -125,27 +125,27 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             }
         }
         if let Err(e) = ef.flush_node(nid) {
-            exfat_utils::get_mut_node!(ef, nid).put();
+            exfat_utils::util::get_node_mut!(ef, nid).put();
             ef.closedir_cursor(c);
-            exfat_utils::get_mut_node!(ef, dnid).put();
+            exfat_utils::util::get_node_mut!(ef, dnid).put();
             return Err(e);
         }
-        exfat_utils::get_mut_node!(ef, nid).put();
+        exfat_utils::util::get_node_mut!(ef, nid).put();
     }
 
     ef.closedir_cursor(c);
     if let Err(e) = ef.flush_node(dnid) {
-        exfat_utils::get_mut_node!(ef, dnid).put();
+        exfat_utils::util::get_node_mut!(ef, dnid).put();
         return Err(e);
     }
-    exfat_utils::get_mut_node!(ef, dnid).put();
+    exfat_utils::util::get_node_mut!(ef, dnid).put();
 
     Ok((directories_count, files_count))
 }
 
-fn fsck(spec: &str, mopts: &[&str]) -> nix::Result<Option<libexfat::exfat::Exfat>> {
+fn fsck(spec: &str, mopt: &[&str]) -> nix::Result<Option<libexfat::exfat::Exfat>> {
     // ENODEV - failed to open the device, checking haven't started
-    let mut ef = match libexfat::mount(spec, mopts) {
+    let mut ef = match libexfat::mount(spec, mopt) {
         Ok(v) => v,
         Err(nix::errno::Errno::ENODEV) => return Err(nix::errno::Errno::ENODEV),
         Err(e) => {
@@ -166,10 +166,10 @@ fn fsck(spec: &str, mopts: &[&str]) -> nix::Result<Option<libexfat::exfat::Exfat
     Ok(Some(ef))
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!("Usage: {prog} [-a | -n | -p | -y] [-V] <device>"))
+        gopt.usage(&format!("Usage: {prog} [-a | -n | -p | -y] [-V] <device>"))
     );
 }
 
@@ -184,28 +184,28 @@ fn main() {
 
     exfat_utils::util::print_version(prog);
 
-    let mut opts = getopts::Options::new();
-    opts.optflag(
+    let mut gopt = getopts::Options::new();
+    gopt.optflag(
         "a",
         "",
         "Automatically repair the file system. No user intervention required.",
     );
-    opts.optflag(
+    gopt.optflag(
         "n",
         "",
         "No-operation mode: non-interactively check for errors, \
         but don't write anything to the file system.",
     );
-    opts.optflag("p", "", "Same as -a for compatibility with other *fsck.");
-    opts.optflag("y", "", "Same as -a for compatibility with other *fsck.");
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    gopt.optflag("p", "", "Same as -a for compatibility with other *fsck.");
+    gopt.optflag("y", "", "Same as -a for compatibility with other *fsck.");
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -214,19 +214,19 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
-    let mut mopts = vec![];
+    let mut mopt = vec![];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
 
     if matches.opt_present("a") || matches.opt_present("p") || matches.opt_present("y") {
-        mopts.extend_from_slice(&["--repair", "yes"]);
+        mopt.extend_from_slice(&["--repair", "yes"]);
     } else if matches.opt_present("n") {
-        mopts.extend_from_slice(&["--repair", "no", "--mode", "ro"]);
+        mopt.extend_from_slice(&["--repair", "no", "--mode", "ro"]);
     } else {
         let repair = match nix::unistd::isatty(0) {
             Ok(v) => {
@@ -241,18 +241,18 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        mopts.extend_from_slice(&["--repair", repair]);
+        mopt.extend_from_slice(&["--repair", repair]);
     }
 
     let args = matches.free;
     if args.len() != 1 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
     let spec = &args[0];
 
     println!("Checking file system on {spec}.");
-    let ef = match fsck(spec, &mopts) {
+    let ef = match fsck(spec, &mopt) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");

@@ -160,10 +160,10 @@ fn logarithm2(n: i32) -> i32 {
     -1
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!(
+        gopt.usage(&format!(
             "Usage: {prog} [-i volume-id] [-n label] [-p partition-first-sector] \
             [-s sectors-per-cluster] [-V] <device>"
         ))
@@ -181,21 +181,21 @@ fn main() {
 
     exfat_utils::util::print_version(prog);
 
-    let mut opts = getopts::Options::new();
-    opts.optopt(
+    let mut gopt = getopts::Options::new();
+    gopt.optopt(
         "i",
         "",
         "A 32-bit hexadecimal number. By default a value based on current time is set. \
         It doesn't accept 0x or 0X prefix.",
         "<volume-id>",
     );
-    opts.optopt(
+    gopt.optopt(
         "n",
         "",
         "Volume name (label), up to 15 characters. By default no label is set.",
         "<volume-name>",
     );
-    opts.optopt(
+    gopt.optopt(
         "p",
         "",
         "First sector of the partition starting from the beginning of \
@@ -203,7 +203,7 @@ fn main() {
         it's optional and does not affect anything. Default is 0.",
         "<partition-first-sector>",
     );
-    opts.optopt(
+    gopt.optopt(
         "s",
         "",
         "Number of physical sectors per cluster (cluster is an allocation unit in exFAT). \
@@ -213,14 +213,14 @@ fn main() {
         128 KB if volume size is 32 GB or larger.",
         "<sectors-per-cluster>",
     );
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -229,7 +229,7 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
@@ -282,7 +282,7 @@ fn main() {
 
     let args = matches.free;
     if args.len() != 1 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
 

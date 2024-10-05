@@ -4,10 +4,10 @@ fn print_version(prog: &str) {
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!("Usage: {prog} [-V] <device> [label]"))
+        gopt.usage(&format!("Usage: {prog} [-V] <device> [label]"))
     );
 }
 
@@ -20,15 +20,15 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    let mut opts = getopts::Options::new();
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    let mut gopt = getopts::Options::new();
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -37,25 +37,25 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
-    let mut mopts = vec![];
+    let mut mopt = vec![];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
 
     let args = matches.free;
     if args.len() != 1 && args.len() != 2 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
     let spec = &args[0];
 
     if args.len() == 1 {
-        mopts.extend_from_slice(&["--mode", "ro"]);
-        let ef = match libexfat::mount(spec, &mopts) {
+        mopt.extend_from_slice(&["--mode", "ro"]);
+        let ef = match libexfat::mount(spec, &mopt) {
             Ok(v) => v,
             Err(e) => {
                 log::error!("{e}");
@@ -64,7 +64,7 @@ fn main() {
         };
         println!("{}", ef.get_label());
     } else if args.len() == 2 {
-        let mut ef = match libexfat::mount(spec, &mopts) {
+        let mut ef = match libexfat::mount(spec, &mopt) {
             Ok(v) => v,
             Err(e) => {
                 log::error!("{e}");
@@ -76,7 +76,7 @@ fn main() {
             std::process::exit(1);
         }
     } else {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
 }

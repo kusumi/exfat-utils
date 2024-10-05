@@ -7,12 +7,12 @@ macro_rules! get_node {
 pub use get_node;
 
 #[macro_export]
-macro_rules! get_mut_node {
+macro_rules! get_node_mut {
     ($ef:expr, $nid:expr) => {
-        $ef.get_mut_node($nid).unwrap()
+        $ef.get_node_mut($nid).unwrap()
     };
 }
-pub use get_mut_node;
+pub use get_node_mut;
 
 pub fn print_version(prog: &str) {
     println!(

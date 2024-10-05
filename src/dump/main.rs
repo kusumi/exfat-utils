@@ -88,12 +88,12 @@ fn dump_sb(spec: &str) -> std::io::Result<()> {
 }
 
 fn dump_full(spec: &str, used_sectors: bool) -> nix::Result<()> {
-    let mut mopts = vec!["--mode", "ro"];
+    let mut mopt = vec!["--mode", "ro"];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
 
-    let ef = libexfat::mount(spec, &mopts)?;
+    let ef = libexfat::mount(spec, &mopt)?;
     let free_clusters = ef.get_free_clusters();
     let sb = ef.get_super_block();
     let free_sectors = free_clusters << sb.spc_bits;
@@ -119,12 +119,12 @@ fn dump_full(spec: &str, used_sectors: bool) -> nix::Result<()> {
 }
 
 fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
-    let mut mopts = vec!["--mode", "ro"];
+    let mut mopt = vec!["--mode", "ro"];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
 
-    let mut ef = libexfat::mount(spec, &mopts)?;
+    let mut ef = libexfat::mount(spec, &mopt)?;
     let nid = match ef.lookup(path) {
         Ok(v) => v,
         Err(e) => {
@@ -133,7 +133,7 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
         }
     };
 
-    let node = exfat_utils::get_node!(ef, nid);
+    let node = exfat_utils::util::get_node!(ef, nid);
     let mut cluster = node.get_start_cluster();
     let mut fragment_start_cluster = cluster;
     let mut remainder = node.get_size();
@@ -141,7 +141,7 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
 
     while remainder > 0 {
         if ef.cluster_invalid(cluster) {
-            exfat_utils::get_mut_node!(ef, nid).put();
+            exfat_utils::util::get_node_mut!(ef, nid).put();
             log::error!("'{path}' has invalid cluster {cluster:#x}");
             return Err(nix::errno::Errno::EIO);
         }
@@ -160,14 +160,14 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
         cluster = next_cluster;
     }
 
-    exfat_utils::get_mut_node!(ef, nid).put();
+    exfat_utils::util::get_node_mut!(ef, nid).put();
     Ok(())
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!("Usage: {prog} [-s] [-u] [-f file] [-V] <device>"))
+        gopt.usage(&format!("Usage: {prog} [-s] [-u] [-f file] [-V] <device>"))
     );
 }
 
@@ -180,19 +180,19 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    let mut opts = getopts::Options::new();
-    opts.optflag(
+    let mut gopt = getopts::Options::new();
+    gopt.optflag(
         "s",
         "",
         "Dump only info from super block. May be useful for heavily corrupted file systems.",
     );
-    opts.optflag(
+    gopt.optflag(
         "u",
         "",
         "Dump ranges of used sectors starting from 0 and separated with spaces. \
         May be useful for backup tools.",
     );
-    opts.optopt(
+    gopt.optopt(
         "f",
         "",
         "Print out a list of fragments that compose the given file. \
@@ -200,14 +200,14 @@ fn main() {
         into the file system, and the length (in bytes).",
         "<file>",
     );
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -216,7 +216,7 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
@@ -226,7 +226,7 @@ fn main() {
 
     let args = matches.free;
     if args.len() != 1 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
     let spec = &args[0];

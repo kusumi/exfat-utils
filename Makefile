@@ -12,6 +12,8 @@ mkfs:
 modfs:
 	cargo build --release --bin modexfatfs
 clean:
+	cargo clean --release -p exfat-utils
+clean_all:
 	cargo clean
 fmt:
 	cargo fmt

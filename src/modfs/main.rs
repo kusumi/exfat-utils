@@ -70,11 +70,11 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
         }
     }
 
-    let mut mopts = vec![];
+    let mut mopt = vec![];
     if exfat_utils::util::is_debug_set() {
-        mopts.push("--debug");
+        mopt.push("--debug");
     }
-    let mut ef = libexfat::mount(spec, &mopts)?;
+    let mut ef = libexfat::mount(spec, &mopt)?;
 
     // fail before start writing
     if let dir::PathConflict::Fail = param.pc {
@@ -82,8 +82,8 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             let f = p.get_dst();
             assert!(f.starts_with('/'));
             if let Ok(v) = ef.lookup(f) {
-                exfat_utils::get_mut_node!(ef, v).put();
-                if !(p.is_dir() && exfat_utils::get_node!(ef, v).is_directory()) {
+                exfat_utils::util::get_node_mut!(ef, v).put();
+                if !(p.is_dir() && exfat_utils::util::get_node!(ef, v).is_directory()) {
                     log::error!("{f} exists");
                     return Err(nix::errno::Errno::EEXIST);
                 }
@@ -100,16 +100,16 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
                 dir::PathConflict::Fail => {
                     // entry with same name already exists (case insensitive)
                     // e.g. "Python" vs "python"
-                    exfat_utils::get_mut_node!(ef, v).put();
+                    exfat_utils::util::get_node_mut!(ef, v).put();
                     // mkdir / mknod will fail with EEXIST
                 }
                 dir::PathConflict::Ignore => {
-                    exfat_utils::get_mut_node!(ef, v).put();
+                    exfat_utils::util::get_node_mut!(ef, v).put();
                     continue;
                 }
                 dir::PathConflict::Unlink => {
-                    if exfat_utils::get_node!(ef, v).is_directory() {
-                        exfat_utils::get_mut_node!(ef, v).put();
+                    if exfat_utils::util::get_node!(ef, v).is_directory() {
+                        exfat_utils::util::get_node_mut!(ef, v).put();
                         continue;
                     }
                     ef.unlink(v)?;
@@ -121,18 +121,18 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             ef.mkdir(f)?;
         } else {
             let nid = ef.mknod(f)?;
-            exfat_utils::get_mut_node!(ef, nid).get();
+            exfat_utils::util::get_node_mut!(ef, nid).get();
             write(&mut ef, nid, p)?;
-            exfat_utils::get_mut_node!(ef, nid).put();
+            exfat_utils::util::get_node_mut!(ef, nid).put();
         }
     }
     Ok(())
 }
 
-fn usage(prog: &str, opts: &getopts::Options) {
+fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!(
+        gopt.usage(&format!(
             "Usage: {prog} [-c \"fail\"|\"ignore\"|\"unlink\"] [-V] <device> <directory> \
             [<extra-directory>...]"
         ))
@@ -150,8 +150,8 @@ fn main() {
 
     exfat_utils::util::print_version(prog);
 
-    let mut opts = getopts::Options::new();
-    opts.optopt(
+    let mut gopt = getopts::Options::new();
+    gopt.optopt(
         "c",
         "conflict",
         "Action to take when a given path already exists within <device>. \
@@ -162,14 +162,14 @@ fn main() {
         Defaults to \"fail\".",
         "<\"fail\"|\"ignore\"|\"unlink\">",
     );
-    opts.optflag("V", "version", "Print version and copyright.");
-    opts.optflag("h", "help", "Print usage.");
+    gopt.optflag("V", "version", "Print version and copyright.");
+    gopt.optflag("h", "help", "Print usage.");
 
-    let matches = match opts.parse(&args[1..]) {
+    let matches = match gopt.parse(&args[1..]) {
         Ok(v) => v,
         Err(e) => {
             log::error!("{e}");
-            usage(prog, &opts);
+            usage(prog, &gopt);
             std::process::exit(1);
         }
     };
@@ -178,7 +178,7 @@ fn main() {
         std::process::exit(0);
     }
     if matches.opt_present("help") {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(0);
     }
 
@@ -197,7 +197,7 @@ fn main() {
 
     let args = matches.free;
     if args.len() < 2 {
-        usage(prog, &opts);
+        usage(prog, &gopt);
         std::process::exit(1);
     }
 
