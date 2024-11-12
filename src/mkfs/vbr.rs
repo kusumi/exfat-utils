@@ -7,20 +7,11 @@ pub(crate) struct FsObject {
     param: MkfsParam,
 }
 
-fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
-    unsafe {
-        ::core::slice::from_raw_parts(
-            std::ptr::from_ref::<T>(p).cast::<u8>(),
-            ::core::mem::size_of::<T>(),
-        )
-    }
-}
-
 impl FsObject {
     fn init_sb(
         &self,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
-    ) -> libexfat::exfatfs::ExfatSuperBlock {
+    ) -> libexfat::fs::ExfatSuperBlock {
         let clusters_max = u32::try_from(self.param.volume_size / self.param.cluster_size).unwrap();
         let fat_sectors = u32::try_from(libexfat::div_round_up!(
             u64::from(clusters_max) * u64::try_from(std::mem::size_of::<u32>()).unwrap(),
@@ -28,7 +19,7 @@ impl FsObject {
         ))
         .unwrap();
 
-        let mut sb = libexfat::exfatfs::ExfatSuperBlock::new();
+        let mut sb = libexfat::fs::ExfatSuperBlock::new();
         sb.jump[0] = 0xeb;
         sb.jump[1] = 0x76;
         sb.jump[2] = 0x90;
@@ -61,7 +52,7 @@ impl FsObject {
                 / self.param.cluster_size,
         )
         .unwrap()
-            + libexfat::exfatfs::EXFAT_FIRST_DATA_CLUSTER)
+            + libexfat::fs::EXFAT_FIRST_DATA_CLUSTER)
             .to_le();
         sb.volume_serial = self.param.volume_serial.to_le();
         sb.version_major = 1;
@@ -96,17 +87,21 @@ impl mkexfat::FsObjectTrait for FsObject {
     fn write(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> std::io::Result<()> {
+        let mut offset = offset;
+
         let sb = self.init_sb(fmap);
-        let buf = any_as_u8_slice(&sb);
-        if let Err(e) = dev.write(buf) {
+        let buf = libexfat::util::any_as_u8_slice(&sb);
+        if let Err(e) = dev.pwrite(buf, offset) {
             log::error!("failed to write super block sector");
             return Err(e);
         }
+        offset += u64::try_from(buf.len()).unwrap();
 
         let mut checksum =
-            libexfat::util::vbr_start_checksum(buf, libexfat::exfatfs::EXFAT_SUPER_BLOCK_SIZE_U64);
+            libexfat::util::vbr_start_checksum(buf, libexfat::fs::EXFAT_SUPER_BLOCK_SIZE_U64);
         let mut sector = vec![0; self.param.sector_size.try_into().unwrap()];
         let n = sector.len();
         sector[n - 4] = 0;
@@ -115,20 +110,22 @@ impl mkexfat::FsObjectTrait for FsObject {
         sector[n - 1] = 0xaa;
 
         for _ in 0..8 {
-            if let Err(e) = dev.write(&sector) {
+            if let Err(e) = dev.pwrite(&sector, offset) {
                 log::error!("failed to write a sector with boot signature");
                 return Err(e);
             }
             checksum = libexfat::util::vbr_add_checksum(&sector, self.param.sector_size, checksum);
+            offset += u64::try_from(sector.len()).unwrap();
         }
 
         let sector = vec![0; self.param.sector_size.try_into().unwrap()];
         for _ in 0..2 {
-            if let Err(e) = dev.write(&sector) {
+            if let Err(e) = dev.pwrite(&sector, offset) {
                 log::error!("failed to write an empty sector");
                 return Err(e);
             }
             checksum = libexfat::util::vbr_add_checksum(&sector, self.param.sector_size, checksum);
+            offset += u64::try_from(sector.len()).unwrap();
         }
 
         let mut buf = vec![0; 4];
@@ -140,7 +137,7 @@ impl mkexfat::FsObjectTrait for FsObject {
             i += 4;
         }
 
-        if let Err(e) = dev.write(&sector) {
+        if let Err(e) = dev.pwrite(&sector, offset) {
             log::error!("failed to write checksum sector");
             return Err(e);
         }

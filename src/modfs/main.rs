@@ -1,5 +1,7 @@
 mod dir;
-mod util;
+mod xutil;
+
+use exfat_utils::util;
 
 use std::io::Read;
 
@@ -71,7 +73,7 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if util::is_debug_set() {
         mopt.push("--debug");
     }
     let mut ef = libexfat::mount(spec, &mopt)?;
@@ -82,8 +84,8 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             let f = p.get_dst();
             assert!(f.starts_with('/'));
             if let Ok(v) = ef.lookup(f) {
-                exfat_utils::util::get_node_mut!(ef, v).put();
-                if !(p.is_dir() && exfat_utils::util::get_node!(ef, v).is_directory()) {
+                util::get_node_mut!(ef, v).put();
+                if !(p.is_dir() && util::get_node!(ef, v).is_directory()) {
                     log::error!("{f} exists");
                     return Err(nix::errno::Errno::EEXIST);
                 }
@@ -100,16 +102,16 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
                 dir::PathConflict::Fail => {
                     // entry with same name already exists (case insensitive)
                     // e.g. "Python" vs "python"
-                    exfat_utils::util::get_node_mut!(ef, v).put();
+                    util::get_node_mut!(ef, v).put();
                     // mkdir / mknod will fail with EEXIST
                 }
                 dir::PathConflict::Ignore => {
-                    exfat_utils::util::get_node_mut!(ef, v).put();
+                    util::get_node_mut!(ef, v).put();
                     continue;
                 }
                 dir::PathConflict::Unlink => {
-                    if exfat_utils::util::get_node!(ef, v).is_directory() {
-                        exfat_utils::util::get_node_mut!(ef, v).put();
+                    if util::get_node!(ef, v).is_directory() {
+                        util::get_node_mut!(ef, v).put();
                         continue;
                     }
                     ef.unlink(v)?;
@@ -121,9 +123,9 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             ef.mkdir(f)?;
         } else {
             let nid = ef.mknod(f)?;
-            exfat_utils::util::get_node_mut!(ef, nid).get();
+            util::get_node_mut!(ef, nid).get();
             write(&mut ef, nid, p)?;
-            exfat_utils::util::get_node_mut!(ef, nid).put();
+            util::get_node_mut!(ef, nid).put();
         }
     }
     Ok(())
@@ -133,14 +135,14 @@ fn usage(prog: &str, gopt: &getopts::Options) {
     print!(
         "{}",
         gopt.usage(&format!(
-            "Usage: {prog} [-c \"fail\"|\"ignore\"|\"unlink\"] [-V] <device> <directory> \
-            [<extra-directory>...]"
+            "Usage: {prog} [-c \"fail\"|\"ignore\"|\"unlink\"] [-V] <device> <path> \
+            [<extra-path>...]"
         ))
     );
 }
 
 fn main() {
-    if let Err(e) = exfat_utils::util::init_std_logger() {
+    if let Err(e) = util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -148,7 +150,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    exfat_utils::util::print_version(prog);
+    util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optopt(

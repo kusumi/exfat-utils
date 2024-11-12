@@ -1,4 +1,4 @@
-bin:	dump attrib fsck label mkfs modfs
+bin:	dump attrib fsck label mkfs modfs ctl
 dump:
 	cargo build --release --bin dumpexfat
 attrib:
@@ -11,6 +11,8 @@ mkfs:
 	cargo build --release --bin mkexfatfs
 modfs:
 	cargo build --release --bin modexfatfs
+ctl:
+	cargo build --release --bin exfatctl
 clean:
 	cargo clean --release -p exfat-utils
 clean_all:

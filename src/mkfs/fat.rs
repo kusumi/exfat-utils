@@ -10,32 +10,37 @@ pub(crate) struct FsObject {
 impl FsObject {
     fn fat_write_entry(
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         cluster: u32,
         value: u32,
-    ) -> std::io::Result<u32> {
+    ) -> std::io::Result<(u64, u32)> {
         let fat_entry = value.to_le();
         let mut buf = vec![0; 4];
         byteorder::LittleEndian::write_u32_into(&[fat_entry], &mut buf);
-        dev.write(&buf)?;
-        Ok(cluster + 1)
+        dev.pwrite(&buf, offset)?;
+        Ok((offset + u64::try_from(buf.len()).unwrap(), cluster + 1))
     }
 
     fn fat_write_entries(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         cluster: u32,
         length: u64,
-    ) -> std::io::Result<u32> {
+    ) -> std::io::Result<(u64, u32)> {
         let end = cluster
             + u32::try_from(libexfat::div_round_up!(length, self.param.cluster_size)).unwrap();
+        let mut offset = offset;
         let mut cluster = cluster;
         while cluster < end - 1 {
-            cluster = Self::fat_write_entry(dev, cluster, cluster + 1)?;
+            let t = Self::fat_write_entry(dev, offset, cluster, cluster + 1)?;
+            offset = t.0;
+            cluster = t.1;
             if cluster == 0 {
                 return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
             }
         }
-        Self::fat_write_entry(dev, cluster, libexfat::exfatfs::EXFAT_CLUSTER_END)
+        Self::fat_write_entry(dev, offset, cluster, libexfat::fs::EXFAT_CLUSTER_END)
     }
 }
 
@@ -59,17 +64,18 @@ impl mkexfat::FsObjectTrait for FsObject {
     fn write(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> std::io::Result<()> {
         let cbm = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Cbm);
         let uct = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Uct);
         let rootdir = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Rootdir);
 
-        let c = Self::fat_write_entry(dev, 0, 0xffff_fff8)?; // media type
-        let c = Self::fat_write_entry(dev, c, 0xffff_ffff)?; // some weird constant
-        let c = self.fat_write_entries(dev, c, cbm.get_size(fmap))?;
-        let c = self.fat_write_entries(dev, c, uct.get_size(fmap))?;
-        self.fat_write_entries(dev, c, rootdir.get_size(fmap))?;
+        let (o, c) = Self::fat_write_entry(dev, offset, 0, 0xffff_fff8)?; // media type
+        let (o, c) = Self::fat_write_entry(dev, o, c, 0xffff_ffff)?; // some weird constant
+        let (o, c) = self.fat_write_entries(dev, o, c, cbm.get_size(fmap))?;
+        let (o, c) = self.fat_write_entries(dev, o, c, uct.get_size(fmap))?;
+        self.fat_write_entries(dev, o, c, rootdir.get_size(fmap))?;
         Ok(())
     }
 }

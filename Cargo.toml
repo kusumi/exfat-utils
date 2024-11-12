@@ -1,6 +1,6 @@
 [package]
 name = "exfat-utils"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -29,14 +29,17 @@ path = "src/mkfs/main.rs"
 name = "modexfatfs"
 path = "src/modfs/main.rs"
 
+[[bin]]
+name = "exfatctl"
+path = "src/ctl/main.rs"
+
 [dependencies]
 bytemuck = "1.16.0"
 byteorder = "1.5.0"
 env_logger = "0.11.3"
 getopts = "0.2.21"
+libexfat = { git = "https://github.com/kusumi/libexfat" }
 log = "0.4.22"
-nix = { version = "0.29.0", features = ["fs"] }
+nix = { version = "0.29.0", features = ["fs", "ioctl"] }
 path-clean = "1.0.1"
 walkdir = "2.5.0"
-
-libexfat = { git = "https://github.com/kusumi/libexfat" }

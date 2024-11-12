@@ -1,3 +1,5 @@
+use exfat_utils::util;
+
 use std::io::Write;
 
 fn print_version() {
@@ -27,7 +29,7 @@ fn print_super_block(ef: &libexfat::exfat::Exfat) {
 
 fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> nix::Result<()> {
     let cluster_size = ef.get_cluster_size();
-    let node = exfat_utils::util::get_node!(ef, nid);
+    let node = util::get_node!(ef, nid);
     let mut clusters = libexfat::div_round_up!(node.get_size(), cluster_size);
     let mut c = node.get_start_cluster();
 
@@ -36,18 +38,18 @@ fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> nix::Res
         if ef.cluster_invalid(c) {
             log::error!(
                 "file '{}' has invalid cluster {c:#x}",
-                exfat_utils::util::get_node!(ef, nid).get_name()
+                util::get_node!(ef, nid).get_name()
             );
             return Err(nix::errno::Errno::EINVAL);
         }
         if !ef.is_cluster_allocated(
-            (c - libexfat::exfatfs::EXFAT_FIRST_DATA_CLUSTER)
+            (c - libexfat::fs::EXFAT_FIRST_DATA_CLUSTER)
                 .try_into()
                 .unwrap(),
         ) {
             log::error!(
                 "cluster {c:#x} of file '{}' is not allocated",
-                exfat_utils::util::get_node!(ef, nid).get_name()
+                util::get_node!(ef, nid).get_name()
             );
             return Err(nix::errno::Errno::EINVAL);
         }
@@ -61,21 +63,21 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
         Ok(v) => v,
         Err(e) => panic!("directory '{path}' is not found: {e}"),
     };
-    let dnode = exfat_utils::util::get_node!(ef, dnid);
+    let dnode = util::get_node!(ef, dnid);
     assert!(
         dnode.is_directory(),
         "'{path}' is not a directory ({:#x})",
         dnode.get_attrib()
     );
     if let Err(e) = nodeck(ef, dnid) {
-        exfat_utils::util::get_node_mut!(ef, dnid).put();
+        util::get_node_mut!(ef, dnid).put();
         return Err(e);
     }
 
     let mut c = match ef.opendir_cursor(dnid) {
         Ok(v) => v,
         Err(e) => {
-            exfat_utils::util::get_node_mut!(ef, dnid).put();
+            util::get_node_mut!(ef, dnid).put();
             return Err(e);
         }
     };
@@ -88,11 +90,11 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             Err(nix::errno::Errno::ENOENT) => break,
             Err(e) => {
                 ef.closedir_cursor(c);
-                exfat_utils::util::get_node_mut!(ef, dnid).put();
+                util::get_node_mut!(ef, dnid).put();
                 return Err(e);
             }
         };
-        let node = exfat_utils::util::get_node!(ef, nid);
+        let node = util::get_node!(ef, nid);
         let entry_path = format!("{}/{}", path, node.get_name());
         log::debug!(
             "{}: {}, {} bytes, cluster {}",
@@ -110,9 +112,9 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             let (d, f) = match dirck(ef, &entry_path) {
                 Ok(v) => v,
                 Err(e) => {
-                    exfat_utils::util::get_node_mut!(ef, nid).put();
+                    util::get_node_mut!(ef, nid).put();
                     ef.closedir_cursor(c);
-                    exfat_utils::util::get_node_mut!(ef, dnid).put();
+                    util::get_node_mut!(ef, dnid).put();
                     return Err(e);
                 }
             };
@@ -125,20 +127,20 @@ fn dirck(ef: &mut libexfat::exfat::Exfat, path: &str) -> nix::Result<(u64, u64)>
             }
         }
         if let Err(e) = ef.flush_node(nid) {
-            exfat_utils::util::get_node_mut!(ef, nid).put();
+            util::get_node_mut!(ef, nid).put();
             ef.closedir_cursor(c);
-            exfat_utils::util::get_node_mut!(ef, dnid).put();
+            util::get_node_mut!(ef, dnid).put();
             return Err(e);
         }
-        exfat_utils::util::get_node_mut!(ef, nid).put();
+        util::get_node_mut!(ef, nid).put();
     }
 
     ef.closedir_cursor(c);
     if let Err(e) = ef.flush_node(dnid) {
-        exfat_utils::util::get_node_mut!(ef, dnid).put();
+        util::get_node_mut!(ef, dnid).put();
         return Err(e);
     }
-    exfat_utils::util::get_node_mut!(ef, dnid).put();
+    util::get_node_mut!(ef, dnid).put();
 
     Ok((directories_count, files_count))
 }
@@ -174,7 +176,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = exfat_utils::util::init_std_logger() {
+    if let Err(e) = util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -182,7 +184,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    exfat_utils::util::print_version(prog);
+    util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optflag(
@@ -219,7 +221,7 @@ fn main() {
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if util::is_debug_set() {
         mopt.push("--debug");
     }
 

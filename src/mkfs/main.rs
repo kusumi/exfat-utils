@@ -6,6 +6,8 @@ mod uct;
 mod uctc;
 mod vbr;
 
+use exfat_utils::util;
+
 const CHAR_BIT: usize = 8;
 
 fn print_version() {
@@ -18,7 +20,7 @@ struct MkfsParam {
     sector_bits: i32,
     spc_bits: i32,
     volume_size: u64,
-    volume_label: [u16; libexfat::exfatfs::EXFAT_ENAME_MAX],
+    volume_label: [u16; libexfat::fs::EXFAT_ENAME_MAX],
     volume_serial: u32,
     first_sector: u64,
     sector_size: u64,
@@ -30,7 +32,7 @@ impl MkfsParam {
         sector_bits: i32,
         spc_bits: i32,
         volume_size: u64,
-        volume_label: [u16; libexfat::exfatfs::EXFAT_ENAME_MAX],
+        volume_label: [u16; libexfat::fs::EXFAT_ENAME_MAX],
         volume_serial: u32,
         first_sector: u64,
     ) -> Self {
@@ -52,7 +54,7 @@ impl MkfsParam {
 fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix::Result<i32> {
     if user_defined != -1 {
         let cluster_size = (1 << sector_bits) << user_defined;
-        if volume_size / cluster_size > libexfat::exfatfs::EXFAT_LAST_DATA_CLUSTER.into() {
+        if volume_size / cluster_size > libexfat::fs::EXFAT_LAST_DATA_CLUSTER.into() {
             let (chb_value, chb_unit) = libexfat::util::humanize_bytes(cluster_size);
             let (vhb_value, vhb_unit) = libexfat::util::humanize_bytes(volume_size);
             log::error!(
@@ -73,7 +75,7 @@ fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix:
     let mut i = 17; // 128 KB or more
     loop {
         if libexfat::util::div_round_up!(volume_size, 1 << i)
-            <= libexfat::exfatfs::EXFAT_LAST_DATA_CLUSTER.into()
+            <= libexfat::fs::EXFAT_LAST_DATA_CLUSTER.into()
         {
             return Ok(std::cmp::max(0, i - sector_bits));
         }
@@ -81,13 +83,13 @@ fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix:
     }
 }
 
-fn setup_volume_label(s: &str) -> nix::Result<[u16; libexfat::exfatfs::EXFAT_ENAME_MAX]> {
+fn setup_volume_label(s: &str) -> nix::Result<[u16; libexfat::fs::EXFAT_ENAME_MAX]> {
     if s.is_empty() {
-        return Ok([0; libexfat::exfatfs::EXFAT_ENAME_MAX]);
+        return Ok([0; libexfat::fs::EXFAT_ENAME_MAX]);
     }
     let s = s.as_bytes();
     Ok(
-        libexfat::utf::utf8_to_utf16(s, libexfat::exfatfs::EXFAT_ENAME_MAX, s.len())?
+        libexfat::utf::utf8_to_utf16(s, libexfat::fs::EXFAT_ENAME_MAX, s.len())?
             .try_into()
             .unwrap(),
     )
@@ -171,7 +173,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = exfat_utils::util::init_std_logger() {
+    if let Err(e) = util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -179,7 +181,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    exfat_utils::util::print_version(prog);
+    util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optopt(

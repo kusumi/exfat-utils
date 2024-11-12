@@ -1,4 +1,4 @@
-use crate::util;
+use crate::xutil;
 
 #[derive(Debug)]
 pub(crate) enum PathConflict {
@@ -34,27 +34,27 @@ impl Path {
 
 fn assert_path(f: &str) -> std::io::Result<()> {
     std::fs::metadata(f)?;
-    assert!(util::is_abspath(f));
+    assert!(xutil::is_abspath(f));
     assert!(!f.ends_with('/')); // must not end with /
     Ok(())
 }
 
 pub(crate) fn collect(input: &str) -> std::io::Result<Vec<Path>> {
-    let input = util::canonicalize_path(input)?;
+    let input = xutil::canonicalize_path(input)?;
     assert_path(&input)?;
 
-    let t = util::get_raw_file_type(&input)?;
+    let t = xutil::get_raw_file_type(&input)?;
     assert!(!t.is_symlink());
     let prefix = if t.is_dir() {
         input.clone()
     } else if t.is_file() {
-        util::canonicalize_path(&util::get_dirpath(&input)?)?
+        xutil::canonicalize_path(&xutil::get_dirpath(&input)?)?
     } else {
         return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
     };
     assert_path(&prefix)?;
 
-    let t = util::get_raw_file_type(&prefix)?;
+    let t = xutil::get_raw_file_type(&prefix)?;
     if t.is_dir() || t.is_file() {
         walk_directory(&input, &prefix)
     } else {
@@ -75,7 +75,7 @@ fn walk_directory(input: &str, prefix: &str) -> std::io::Result<Vec<Path>> {
         if f == prefix {
             continue;
         }
-        let t = util::get_raw_file_type(f)?;
+        let t = xutil::get_raw_file_type(f)?;
         if t.is_dir() || t.is_file() {
             v.push(Path::new(f.to_string(), prefix.len(), t.is_dir()));
         } else {

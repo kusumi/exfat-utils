@@ -1,5 +1,7 @@
+use exfat_utils::util;
+
 fn print_version(prog: &str) {
-    exfat_utils::util::print_version(prog);
+    util::print_version(prog);
     println!("Copyright (C) 2011-2023  Andrew Nayenko");
     println!("Copyright (C) 2020-2023  Endless OS Foundation LLC");
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
@@ -19,7 +21,7 @@ fn attribute(
     clear_flags: u16,
 ) -> nix::Result<()> {
     if (add_flags | clear_flags) != 0 {
-        let node = exfat_utils::util::get_node_mut!(ef, nid);
+        let node = util::get_node_mut!(ef, nid);
         let mut attrib = node.get_attrib();
         attrib |= add_flags;
         attrib &= !clear_flags;
@@ -29,20 +31,20 @@ fn attribute(
             if let Err(e) = ef.flush_node(nid) {
                 log::error!(
                     "failed to flush changes to {}: {e}",
-                    exfat_utils::util::get_node!(ef, nid).get_name()
+                    util::get_node!(ef, nid).get_name()
                 );
                 return Err(e);
             }
         }
     } else {
-        let attrib = exfat_utils::util::get_node!(ef, nid).get_attrib();
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_RO, "Read-only");
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_HIDDEN, "Hidden");
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_SYSTEM, "System");
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_ARCH, "Archive");
+        let attrib = util::get_node!(ef, nid).get_attrib();
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_RO, "Read-only");
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_HIDDEN, "Hidden");
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_SYSTEM, "System");
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_ARCH, "Archive");
         // read-only attributes
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_VOLUME, "Volume");
-        print_attribute(attrib, libexfat::exfatfs::EXFAT_ATTRIB_DIR, "Directory");
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_VOLUME, "Volume");
+        print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_DIR, "Directory");
     }
     Ok(())
 }
@@ -55,7 +57,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = exfat_utils::util::init_std_logger() {
+    if let Err(e) = util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -109,34 +111,34 @@ fn main() {
     let mut add_flags = 0;
     let mut clear_flags = 0;
     if matches.opt_present("r") {
-        add_flags |= libexfat::exfatfs::EXFAT_ATTRIB_RO;
+        add_flags |= libexfat::fs::EXFAT_ATTRIB_RO;
     }
     if matches.opt_present("R") {
-        clear_flags |= libexfat::exfatfs::EXFAT_ATTRIB_RO;
+        clear_flags |= libexfat::fs::EXFAT_ATTRIB_RO;
     }
     // "-h[elp]" is taken; i is the second letter of "hidden" and
     // its synonym "invisible"
     if matches.opt_present("i") {
-        add_flags |= libexfat::exfatfs::EXFAT_ATTRIB_HIDDEN;
+        add_flags |= libexfat::fs::EXFAT_ATTRIB_HIDDEN;
     }
     if matches.opt_present("I") {
-        clear_flags |= libexfat::exfatfs::EXFAT_ATTRIB_HIDDEN;
+        clear_flags |= libexfat::fs::EXFAT_ATTRIB_HIDDEN;
     }
     if matches.opt_present("s") {
-        add_flags |= libexfat::exfatfs::EXFAT_ATTRIB_SYSTEM;
+        add_flags |= libexfat::fs::EXFAT_ATTRIB_SYSTEM;
     }
     if matches.opt_present("S") {
-        clear_flags |= libexfat::exfatfs::EXFAT_ATTRIB_SYSTEM;
+        clear_flags |= libexfat::fs::EXFAT_ATTRIB_SYSTEM;
     }
     if matches.opt_present("a") {
-        add_flags |= libexfat::exfatfs::EXFAT_ATTRIB_ARCH;
+        add_flags |= libexfat::fs::EXFAT_ATTRIB_ARCH;
     }
     if matches.opt_present("A") {
-        clear_flags |= libexfat::exfatfs::EXFAT_ATTRIB_ARCH;
+        clear_flags |= libexfat::fs::EXFAT_ATTRIB_ARCH;
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if util::is_debug_set() {
         mopt.push("--debug");
     }
 
@@ -173,7 +175,7 @@ fn main() {
     };
 
     let result = attribute(&mut ef, nid, add_flags, clear_flags);
-    exfat_utils::util::get_node_mut!(ef, nid).put();
+    util::get_node_mut!(ef, nid).put();
     if let Err(e) = result {
         log::error!("{e}");
         std::process::exit(1);

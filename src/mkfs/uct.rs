@@ -25,9 +25,10 @@ impl mkexfat::FsObjectTrait for FsObject {
     fn write(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> std::io::Result<()> {
-        if let Err(e) = dev.write(&uctc::UPCASE_TABLE) {
+        if let Err(e) = dev.pwrite(&uctc::UPCASE_TABLE, offset) {
             log::error!(
                 "failed to write upcase table of {} bytes",
                 self.get_size(fmap)

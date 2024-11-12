@@ -1,15 +1,19 @@
 use exfat_utils::util;
 
-fn print_version(prog: &str) {
-    util::print_version(prog);
-    println!("Copyright (C) 2011-2023  Andrew Nayenko");
+use std::os::fd::AsRawFd;
+
+fn print_version() {
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
 }
 
 fn usage(prog: &str, gopt: &getopts::Options) {
+    let indent = "    ";
     print!(
         "{}",
-        gopt.usage(&format!("Usage: {prog} [-V] <device> [label]"))
+        gopt.usage(&format!(
+            "Usage: {prog} [-V] <\"nidprune\"> <path> \n\
+            {indent}nidprune - Free in-memory nodes."
+        ))
     );
 }
 
@@ -21,6 +25,8 @@ fn main() {
 
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
+
+    util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optflag("V", "version", "Print version and copyright.");
@@ -35,7 +41,7 @@ fn main() {
         }
     };
     if matches.opt_present("V") {
-        print_version(prog);
+        print_version();
         std::process::exit(0);
     }
     if matches.opt_present("help") {
@@ -43,42 +49,41 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut mopt = vec![];
-    if util::is_debug_set() {
-        mopt.push("--debug");
-    }
-
     let args = matches.free;
-    if args.len() != 1 && args.len() != 2 {
+    if args.len() < 2 {
         usage(prog, &gopt);
         std::process::exit(1);
     }
-    let spec = &args[0];
 
-    if args.len() == 1 {
-        mopt.extend_from_slice(&["--mode", "ro"]);
-        let ef = match libexfat::mount(spec, &mopt) {
+    let cmd = &args[0];
+    let f = &args[1];
+
+    if cmd == "nidprune" {
+        let fp = match std::fs::File::open(f) {
             Ok(v) => v,
             Err(e) => {
                 log::error!("{e}");
                 std::process::exit(1);
             }
         };
-        println!("{}", ef.get_label());
-    } else if args.len() == 2 {
-        let mut ef = match libexfat::mount(spec, &mopt) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{e}");
-                std::process::exit(1);
-            }
-        };
-        if let Err(e) = ef.set_label(&args[1]) {
-            log::error!("{e}");
+        nix::ioctl_read!(
+            nidprune,
+            libexfat::ctl::EXFAT_CTL,
+            libexfat::ctl::EXFAT_CTL_NIDPRUNE,
+            libexfat::ctl::ExfatCtlNidPruneData
+        );
+        let mut b = [0; 2];
+        if let Err(e) = unsafe { nidprune(fp.as_raw_fd(), &mut b) } {
+            log::error!("{e}"); // not supported if ENOTTY
             std::process::exit(1);
         }
+        if cfg!(target_endian = "little") {
+            b[0] = b[0].swap_bytes();
+            b[1] = b[1].swap_bytes();
+        }
+        log::info!("{b:?}");
     } else {
-        usage(prog, &gopt);
+        log::error!("invalid ioctl command {cmd}");
         std::process::exit(1);
     }
 }

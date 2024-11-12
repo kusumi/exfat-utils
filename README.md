@@ -1,4 +1,4 @@
-exfat-utils ([v0.2.2](https://github.com/kusumi/exfat-utils/releases/tag/v0.2.2))
+exfat-utils ([v0.3.0](https://github.com/kusumi/exfat-utils/releases/tag/v0.3.0))
 ========
 
 ## About
@@ -7,7 +7,7 @@ Rust version of exfat-utils in [https://github.com/relan/exfat](https://github.c
 
 ## Supported platforms
 
-Linux
+Linux / FreeBSD
 
 ## Requirements
 
@@ -120,7 +120,7 @@ modexfatfs
 
     $ ./target/release/modexfatfs
     modexfatfs 1.4.0
-    Usage: ./target/release/modexfatfs [-c "fail"|"ignore"|"unlink"] [-V] <device> <directory> [<extra-directory>...]
+    Usage: ./target/release/modexfatfs [-c "fail"|"ignore"|"unlink"] [-V] <device> <path> [<extra-path>...]
     
     Options:
         -c, --conflict <"fail"|"ignore"|"unlink">
@@ -131,6 +131,17 @@ modexfatfs
                             existing path first and then create. Unlink of
                             directory (and its child entries) is unsupported.
                             Defaults to "fail".
+        -V, --version       Print version and copyright.
+        -h, --help          Print usage.
+
+exfatctl
+
+    $ ./target/release/exfatctl
+    exfatctl 1.4.0
+    Usage: ./target/release/exfatctl [-V] <"nidprune"> <path>
+        nidprune - Free in-memory nodes.
+    
+    Options:
         -V, --version       Print version and copyright.
         -h, --help          Print usage.
 

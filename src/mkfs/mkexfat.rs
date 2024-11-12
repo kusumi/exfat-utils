@@ -53,6 +53,7 @@ pub(crate) trait FsObjectTrait {
     fn write(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
     ) -> std::io::Result<()>;
 }
@@ -116,14 +117,11 @@ fn erase_object(
     start: u64,
     size: u64,
 ) -> std::io::Result<()> {
-    if let Err(e) = dev.seek_set(start) {
-        log::error!("seek to {start:#x} failed");
-        return Err(e);
-    }
+    let mut offset = start;
     let mut i = 0;
     while i < size {
         let buf = &block[..std::cmp::min(size - i, block_size).try_into().unwrap()];
-        if let Err(e) = dev.write(buf) {
+        if let Err(e) = dev.pwrite(buf, offset) {
             log::error!(
                 "failed to erase block {}/{} at {:#x}",
                 i + 1,
@@ -132,6 +130,7 @@ fn erase_object(
             );
             return Err(e);
         }
+        offset += block_size;
         i += block_size;
     }
     Ok(())
@@ -167,11 +166,7 @@ fn create(
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
         position = libexfat::round_up!(position, f.get_alignment());
-        if let Err(e) = dev.seek_set(position) {
-            log::error!("seek to {position:#x} failed");
-            return Err(e);
-        }
-        f.write(dev, fmap)?;
+        f.write(dev, position, fmap)?;
         position += f.get_size(fmap);
     }
     Ok(())

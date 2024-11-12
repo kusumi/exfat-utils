@@ -29,6 +29,7 @@ impl mkexfat::FsObjectTrait for FsObject {
     fn write(
         &self,
         dev: &mut libexfat::device::ExfatDevice,
+        offset: u64,
         fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
     ) -> std::io::Result<()> {
         let cbm = mkexfat::get_fso!(fmap, &mkexfat::FsObjectType::Cbm);
@@ -49,7 +50,7 @@ impl mkexfat::FsObjectTrait for FsObject {
             }
         }
 
-        if let Err(e) = dev.write(&bitmap) {
+        if let Err(e) = dev.pwrite(&bitmap, offset) {
             log::error!("failed to write bitmap of {} bytes", count / CHAR_BIT);
             return Err(e);
         }
