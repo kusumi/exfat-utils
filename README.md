@@ -1,9 +1,9 @@
-exfat-utils ([v0.3.0](https://github.com/kusumi/exfat-utils/releases/tag/v0.3.0))
+exfat-utils ([v0.4.0](https://github.com/kusumi/exfat-utils/releases/tag/v0.4.0))
 ========
 
 ## About
 
-Rust version of exfat-utils in [https://github.com/relan/exfat](https://github.com/relan/exfat)
+Rust fork of exfat-utils in [https://github.com/relan/exfat](https://github.com/relan/exfat)
 
 ## Supported platforms
 
@@ -11,7 +11,7 @@ Linux / FreeBSD
 
 ## Requirements
 
-Rust 1.81.0 or newer
+Rust 1.84.0 or newer
 
 ## Build
 

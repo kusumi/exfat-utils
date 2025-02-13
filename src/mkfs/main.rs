@@ -6,8 +6,6 @@ mod uct;
 mod uctc;
 mod vbr;
 
-use exfat_utils::util;
-
 const CHAR_BIT: usize = 8;
 
 fn print_version() {
@@ -51,7 +49,11 @@ impl MkfsParam {
     }
 }
 
-fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix::Result<i32> {
+fn setup_spc_bits(
+    sector_bits: i32,
+    user_defined: i32,
+    volume_size: u64,
+) -> exfat_utils::Result<i32> {
     if user_defined != -1 {
         let cluster_size = (1 << sector_bits) << user_defined;
         if volume_size / cluster_size > libexfat::fs::EXFAT_LAST_DATA_CLUSTER.into() {
@@ -60,9 +62,9 @@ fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix:
             log::error!(
                 "cluster size {chb_value} {chb_unit} is too small for \
                 {vhb_value} {vhb_unit} volume, try -s {}",
-                1 << setup_spc_bits(sector_bits, -1, volume_size).unwrap()
+                1 << setup_spc_bits(sector_bits, -1, volume_size)?
             );
-            return Err(nix::errno::Errno::EINVAL);
+            return Err(Box::new(nix::errno::Errno::EINVAL));
         }
         return Ok(user_defined);
     }
@@ -83,36 +85,35 @@ fn setup_spc_bits(sector_bits: i32, user_defined: i32, volume_size: u64) -> nix:
     }
 }
 
-fn setup_volume_label(s: &str) -> nix::Result<[u16; libexfat::fs::EXFAT_ENAME_MAX]> {
+fn setup_volume_label(s: &str) -> exfat_utils::Result<[u16; libexfat::fs::EXFAT_ENAME_MAX]> {
     if s.is_empty() {
         return Ok([0; libexfat::fs::EXFAT_ENAME_MAX]);
     }
     let s = s.as_bytes();
-    Ok(
-        libexfat::utf::utf8_to_utf16(s, libexfat::fs::EXFAT_ENAME_MAX, s.len())?
-            .try_into()
-            .unwrap(),
-    )
+    match libexfat::utf::utf8_to_utf16(s, libexfat::fs::EXFAT_ENAME_MAX, s.len())?.try_into() {
+        Ok(v) => Ok(v),
+        Err(_) => Err(Box::new(nix::errno::Errno::EINVAL)),
+    }
 }
 
-fn setup_volume_serial(user_defined: u32) -> nix::Result<u32> {
+fn setup_volume_serial(user_defined: u32) -> exfat_utils::Result<u32> {
     if user_defined != 0 {
         return Ok(user_defined);
     }
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(v) => Ok(((v.as_secs() as u32) << 20) | v.subsec_micros()),
-        Err(_) => Err(nix::errno::Errno::EINVAL),
+        Err(_) => Err(Box::new(nix::errno::Errno::EINVAL)),
     }
 }
 
 fn setup(
-    dev: &mut libexfat::device::ExfatDevice,
+    dev: &mut libexfat::device::Device,
     sector_bits: i32,
     spc_bits: i32,
     volume_label: &str,
     volume_serial: u32,
     first_sector: u64,
-) -> nix::Result<()> {
+) -> exfat_utils::Result<()> {
     let volume_size = dev.get_size();
     let spc_bits = match setup_spc_bits(sector_bits, spc_bits, volume_size) {
         Ok(v) => v,
@@ -147,19 +148,19 @@ fn setup(
         Ok(()) => Ok(()),
         Err(e) => {
             log::error!("{e}");
-            Err(libexfat::util::error2errno(e))
+            Err(e)
         }
     }
 }
 
-fn logarithm2(n: i32) -> i32 {
+fn logarithm2(n: i32) -> exfat_utils::Result<i32> {
     let bits = std::mem::size_of::<i32>() * CHAR_BIT - 1;
     for i in 0..bits {
         if (1 << i) == n {
-            return i.try_into().unwrap();
+            return Ok(i.try_into()?);
         }
     }
-    -1
+    Ok(-1)
 }
 
 fn usage(prog: &str, gopt: &getopts::Options) {
@@ -172,8 +173,9 @@ fn usage(prog: &str, gopt: &getopts::Options) {
     );
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -181,7 +183,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optopt(
@@ -267,7 +269,13 @@ fn main() {
     let spc_bits = match matches.opt_str("s") {
         Some(v) => match v.parse() {
             Ok(x) => {
-                let spc_bits = logarithm2(x);
+                let spc_bits = match logarithm2(x) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::error!("{e}");
+                        std::process::exit(1);
+                    }
+                };
                 if spc_bits < 0 {
                     log::error!("invalid option value: '{v}'");
                     std::process::exit(1);

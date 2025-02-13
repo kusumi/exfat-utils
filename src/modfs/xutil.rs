@@ -1,6 +1,6 @@
 use path_clean::PathClean;
 
-pub(crate) fn canonicalize_path(f: &str) -> std::io::Result<String> {
+pub(crate) fn canonicalize_path(f: &str) -> exfat_utils::Result<String> {
     Ok(std::fs::canonicalize(f)?
         .into_os_string()
         .into_string()
@@ -10,7 +10,7 @@ pub(crate) fn canonicalize_path(f: &str) -> std::io::Result<String> {
 // This function
 // * does not resolve symlink
 // * works with non existent path
-pub(crate) fn get_abspath(f: &str) -> std::io::Result<String> {
+pub(crate) fn get_abspath(f: &str) -> exfat_utils::Result<String> {
     let p = std::path::Path::new(f);
     Ok(if p.is_absolute() {
         p.to_path_buf()
@@ -24,12 +24,12 @@ pub(crate) fn get_abspath(f: &str) -> std::io::Result<String> {
 }
 
 // fails if f is "/" or equivalent
-pub(crate) fn get_dirpath(f: &str) -> std::io::Result<String> {
+pub(crate) fn get_dirpath(f: &str) -> exfat_utils::Result<String> {
     Ok(std::path::Path::new(&get_abspath(f)?)
         .parent()
-        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?
+        .ok_or(nix::errno::Errno::ENOENT)?
         .to_str()
-        .unwrap()
+        .ok_or(nix::errno::Errno::ENOENT)?
         .to_string())
 }
 

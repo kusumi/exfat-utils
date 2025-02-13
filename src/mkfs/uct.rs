@@ -1,13 +1,9 @@
-use crate::mkexfat;
-use crate::uctc;
-use crate::MkfsParam;
-
 pub(crate) struct FsObject {
-    param: MkfsParam,
+    param: crate::MkfsParam,
 }
 
-impl mkexfat::FsObjectTrait for FsObject {
-    fn new(param: MkfsParam) -> Self {
+impl crate::mkexfat::FsObjectTrait for FsObject {
+    fn new(param: crate::MkfsParam) -> Self {
         Self { param }
     }
 
@@ -17,23 +13,31 @@ impl mkexfat::FsObjectTrait for FsObject {
 
     fn get_size(
         &self,
-        _fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
-    ) -> u64 {
-        u64::try_from(std::mem::size_of_val(&uctc::UPCASE_TABLE)).unwrap()
+        _fmap: &std::collections::HashMap<
+            crate::mkexfat::FsObjectType,
+            Box<dyn crate::mkexfat::FsObjectTrait>,
+        >,
+    ) -> exfat_utils::Result<u64> {
+        Ok(u64::try_from(std::mem::size_of_val(
+            &crate::uctc::UPCASE_TABLE,
+        ))?)
     }
 
     fn write(
         &self,
-        dev: &mut libexfat::device::ExfatDevice,
+        dev: &mut libexfat::device::Device,
         offset: u64,
-        fmap: &std::collections::HashMap<mkexfat::FsObjectType, Box<dyn mkexfat::FsObjectTrait>>,
-    ) -> std::io::Result<()> {
-        if let Err(e) = dev.pwrite(&uctc::UPCASE_TABLE, offset) {
+        fmap: &std::collections::HashMap<
+            crate::mkexfat::FsObjectType,
+            Box<dyn crate::mkexfat::FsObjectTrait>,
+        >,
+    ) -> exfat_utils::Result<()> {
+        if let Err(e) = dev.pwrite(&crate::uctc::UPCASE_TABLE, offset) {
             log::error!(
                 "failed to write upcase table of {} bytes",
-                self.get_size(fmap)
+                self.get_size(fmap)?
             );
-            return Err(e);
+            return Err(Box::new(e));
         }
         Ok(())
     }

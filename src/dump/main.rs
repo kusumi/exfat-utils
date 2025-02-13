@@ -1,7 +1,5 @@
-use exfat_utils::util;
-
 fn print_version(prog: &str) {
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
     println!("Copyright (C) 2011-2023  Andrew Nayenko");
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
 }
@@ -63,13 +61,13 @@ fn print_other_info(sb: &libexfat::fs::ExfatSuperBlock) {
     println!("Allocated space           {:>9}%", sb.allocated_percent);
 }
 
-fn dump_sb(spec: &str) -> std::io::Result<()> {
+fn dump_sb(spec: &str) -> libexfat::Result<()> {
     let mut dev = libexfat::open(spec, "ro")?;
     let buf = match dev.preadx(libexfat::fs::EXFAT_SUPER_BLOCK_SIZE_U64, 0) {
         Ok(v) => v,
         Err(e) => {
             log::error!("failed to read from '{spec}'");
-            return Err(e);
+            return Err(e.into());
         }
     };
     let (prefix, body, suffix) = unsafe { buf.align_to::<libexfat::fs::ExfatSuperBlock>() };
@@ -79,7 +77,7 @@ fn dump_sb(spec: &str) -> std::io::Result<()> {
 
     if sb.oem_name != "EXFAT   ".as_bytes() {
         log::error!("exFAT file system is not found on '{spec}'");
-        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        return Err(nix::errno::Errno::EINVAL.into());
     }
 
     print_generic_info(&sb);
@@ -89,9 +87,9 @@ fn dump_sb(spec: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn dump_full(spec: &str, used_sectors: bool) -> nix::Result<()> {
+fn dump_full(spec: &str, used_sectors: bool) -> libexfat::Result<()> {
     let mut mopt = vec!["--mode", "ro"];
-    if util::is_debug_set() {
+    if exfat_utils::util::is_debug_set() {
         mopt.push("--debug");
     }
 
@@ -120,9 +118,9 @@ fn dump_full(spec: &str, used_sectors: bool) -> nix::Result<()> {
     Ok(())
 }
 
-fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
+fn dump_file_fragments(spec: &str, path: &str) -> libexfat::Result<()> {
     let mut mopt = vec!["--mode", "ro"];
-    if util::is_debug_set() {
+    if exfat_utils::util::is_debug_set() {
         mopt.push("--debug");
     }
 
@@ -135,7 +133,7 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
         }
     };
 
-    let node = util::get_node!(ef, nid);
+    let node = exfat_utils::util::get_node!(ef, nid);
     let mut cluster = node.get_start_cluster();
     let mut fragment_start_cluster = cluster;
     let mut remainder = node.get_size();
@@ -143,9 +141,9 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
 
     while remainder > 0 {
         if ef.cluster_invalid(cluster) {
-            util::get_node_mut!(ef, nid).put();
+            exfat_utils::util::get_node_mut!(ef, nid).put();
             log::error!("'{path}' has invalid cluster {cluster:#x}");
-            return Err(nix::errno::Errno::EIO);
+            return Err(nix::errno::Errno::EIO.into());
         }
         let lsize = std::cmp::min(ef.get_cluster_size(), remainder);
         fragment_size += lsize;
@@ -162,7 +160,7 @@ fn dump_file_fragments(spec: &str, path: &str) -> nix::Result<()> {
         cluster = next_cluster;
     }
 
-    util::get_node_mut!(ef, nid).put();
+    exfat_utils::util::get_node_mut!(ef, nid).put();
     Ok(())
 }
 
@@ -174,7 +172,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }

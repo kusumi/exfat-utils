@@ -1,5 +1,3 @@
-use exfat_utils::util;
-
 use std::os::fd::AsRawFd;
 
 fn print_version() {
@@ -18,7 +16,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -26,7 +24,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optflag("V", "version", "Print version and copyright.");
@@ -66,14 +64,8 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        nix::ioctl_read!(
-            nidprune,
-            libexfat::ctl::EXFAT_CTL,
-            libexfat::ctl::EXFAT_CTL_NIDPRUNE,
-            libexfat::ctl::ExfatCtlNidPruneData
-        );
         let mut b = [0; 2];
-        if let Err(e) = unsafe { nidprune(fp.as_raw_fd(), &mut b) } {
+        if let Err(e) = unsafe { libexfat::ctl::nidprune(fp.as_raw_fd(), &mut b) } {
             log::error!("{e}"); // not supported if ENOTTY
             std::process::exit(1);
         }

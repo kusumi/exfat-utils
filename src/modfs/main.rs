@@ -1,8 +1,6 @@
 mod dir;
 mod xutil;
 
-use exfat_utils::util;
-
 use std::io::Read;
 
 fn print_version() {
@@ -24,36 +22,33 @@ fn write(
     ef: &mut libexfat::exfat::Exfat,
     nid: libexfat::node::Nid,
     p: &dir::Path,
-) -> nix::Result<()> {
+) -> exfat_utils::Result<()> {
     let mut fp = match std::fs::File::open(p.get_src()) {
         Ok(v) => v,
-        Err(e) => return Err(libexfat::util::error2errno(e)),
+        Err(e) => return Err(Box::new(e)),
     };
     let mut buf = vec![0; 1 << 16];
     let mut offset = 0;
     loop {
         let bytes = match fp.read(&mut buf) {
             Ok(v) => v,
-            Err(e) => return Err(libexfat::util::error2errno(e)),
+            Err(e) => return Err(Box::new(e)),
         };
         if bytes == 0 {
             break;
         }
         let buf = &buf[..bytes];
         let bytes = ef.pwrite(nid, buf, offset)?;
-        assert_eq!(bytes, buf.len().try_into().unwrap());
+        assert_eq!(bytes, buf.len().try_into()?);
         offset += bytes;
     }
-    ef.flush_node(nid)
+    Ok(ef.flush_node(nid)?)
 }
 
-fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
+fn modfs(spec: &str, input: &[&str], param: &ModfsParam) -> exfat_utils::Result<()> {
     let mut v = vec![];
     for f in input {
-        let mut x = match dir::collect(f) {
-            Ok(v) => v,
-            Err(e) => return Err(libexfat::util::error2errno(e)),
-        };
+        let mut x = dir::collect(f)?;
         x.sort_by(|a, b| a.get_src().cmp(b.get_src()));
         v.extend_from_slice(&x);
     }
@@ -66,14 +61,14 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
                 let q = &v[j];
                 if (p.get_dst() == q.get_dst()) && !(p.is_dir() && q.is_dir()) {
                     log::error!("duplicate {} in {p:?} and {q:?}", p.get_dst());
-                    return Err(nix::errno::Errno::EEXIST);
+                    return Err(Box::new(nix::errno::Errno::EEXIST));
                 }
             }
         }
     }
 
     let mut mopt = vec![];
-    if util::is_debug_set() {
+    if exfat_utils::util::is_debug_set() {
         mopt.push("--debug");
     }
     let mut ef = libexfat::mount(spec, &mopt)?;
@@ -84,10 +79,10 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             let f = p.get_dst();
             assert!(f.starts_with('/'));
             if let Ok(v) = ef.lookup(f) {
-                util::get_node_mut!(ef, v).put();
-                if !(p.is_dir() && util::get_node!(ef, v).is_directory()) {
+                exfat_utils::util::get_node_mut!(ef, v).put();
+                if !(p.is_dir() && exfat_utils::util::get_node!(ef, v).is_directory()) {
                     log::error!("{f} exists");
-                    return Err(nix::errno::Errno::EEXIST);
+                    return Err(Box::new(nix::errno::Errno::EEXIST));
                 }
             }
         }
@@ -102,16 +97,16 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
                 dir::PathConflict::Fail => {
                     // entry with same name already exists (case insensitive)
                     // e.g. "Python" vs "python"
-                    util::get_node_mut!(ef, v).put();
+                    exfat_utils::util::get_node_mut!(ef, v).put();
                     // mkdir / mknod will fail with EEXIST
                 }
                 dir::PathConflict::Ignore => {
-                    util::get_node_mut!(ef, v).put();
+                    exfat_utils::util::get_node_mut!(ef, v).put();
                     continue;
                 }
                 dir::PathConflict::Unlink => {
-                    if util::get_node!(ef, v).is_directory() {
-                        util::get_node_mut!(ef, v).put();
+                    if exfat_utils::util::get_node!(ef, v).is_directory() {
+                        exfat_utils::util::get_node_mut!(ef, v).put();
                         continue;
                     }
                     ef.unlink(v)?;
@@ -123,9 +118,9 @@ fn modfs(spec: &str, input: &[String], param: &ModfsParam) -> nix::Result<()> {
             ef.mkdir(f)?;
         } else {
             let nid = ef.mknod(f)?;
-            util::get_node_mut!(ef, nid).get();
+            exfat_utils::util::get_node_mut!(ef, nid).get();
             write(&mut ef, nid, p)?;
-            util::get_node_mut!(ef, nid).put();
+            exfat_utils::util::get_node_mut!(ef, nid).put();
         }
     }
     Ok(())
@@ -142,7 +137,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -150,7 +145,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let prog = &args[0];
 
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
 
     let mut gopt = getopts::Options::new();
     gopt.optopt(
@@ -197,7 +192,7 @@ fn main() {
         None => dir::PathConflict::Fail,
     };
 
-    let args = matches.free;
+    let args: Vec<&str> = matches.free.iter().map(String::as_str).collect();
     if args.len() < 2 {
         usage(prog, &gopt);
         std::process::exit(1);
@@ -206,7 +201,7 @@ fn main() {
     let param = ModfsParam::new(pc);
     log::debug!("param {param:?}");
 
-    if let Err(e) = modfs(&args[0], &args[1..], &param) {
+    if let Err(e) = modfs(args[0], &args[1..], &param) {
         log::error!("{e}");
         std::process::exit(1);
     }

@@ -1,7 +1,5 @@
-use exfat_utils::util;
-
 fn print_version(prog: &str) {
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
     println!("Copyright (C) 2011-2023  Andrew Nayenko");
     println!("Copyright (C) 2020-2023  Endless OS Foundation LLC");
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
@@ -19,9 +17,9 @@ fn attribute(
     nid: libexfat::node::Nid,
     add_flags: u16,
     clear_flags: u16,
-) -> nix::Result<()> {
+) -> libexfat::Result<()> {
     if (add_flags | clear_flags) != 0 {
-        let node = util::get_node_mut!(ef, nid);
+        let node = exfat_utils::util::get_node_mut!(ef, nid);
         let mut attrib = node.get_attrib();
         attrib |= add_flags;
         attrib &= !clear_flags;
@@ -31,13 +29,13 @@ fn attribute(
             if let Err(e) = ef.flush_node(nid) {
                 log::error!(
                     "failed to flush changes to {}: {e}",
-                    util::get_node!(ef, nid).get_name()
+                    exfat_utils::util::get_node!(ef, nid).get_name()
                 );
                 return Err(e);
             }
         }
     } else {
-        let attrib = util::get_node!(ef, nid).get_attrib();
+        let attrib = exfat_utils::util::get_node!(ef, nid).get_attrib();
         print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_RO, "Read-only");
         print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_HIDDEN, "Hidden");
         print_attribute(attrib, libexfat::fs::EXFAT_ATTRIB_SYSTEM, "System");
@@ -56,8 +54,9 @@ fn usage(prog: &str, gopt: &getopts::Options) {
     );
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -138,7 +137,7 @@ fn main() {
     }
 
     let mut mopt = vec![];
-    if util::is_debug_set() {
+    if exfat_utils::util::is_debug_set() {
         mopt.push("--debug");
     }
 
@@ -151,11 +150,16 @@ fn main() {
     }
 
     let args = matches.free;
-    if spec.is_none() || args.len() != 1 {
+    let spec = if let Some(v) = spec {
+        if args.len() != 1 {
+            usage(prog, &gopt);
+            std::process::exit(1);
+        }
+        v
+    } else {
         usage(prog, &gopt);
         std::process::exit(1);
-    }
-    let spec = spec.unwrap();
+    };
 
     let mut ef = match libexfat::mount(&spec, &mopt) {
         Ok(v) => v,
@@ -175,7 +179,7 @@ fn main() {
     };
 
     let result = attribute(&mut ef, nid, add_flags, clear_flags);
-    util::get_node_mut!(ef, nid).put();
+    exfat_utils::util::get_node_mut!(ef, nid).put();
     if let Err(e) = result {
         log::error!("{e}");
         std::process::exit(1);

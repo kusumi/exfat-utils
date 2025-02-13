@@ -1,5 +1,3 @@
-use crate::xutil;
-
 #[derive(Debug)]
 pub(crate) enum PathConflict {
     Fail,
@@ -34,48 +32,48 @@ impl Path {
 
 fn assert_path(f: &str) -> std::io::Result<()> {
     std::fs::metadata(f)?;
-    assert!(xutil::is_abspath(f));
+    assert!(crate::xutil::is_abspath(f));
     assert!(!f.ends_with('/')); // must not end with /
     Ok(())
 }
 
-pub(crate) fn collect(input: &str) -> std::io::Result<Vec<Path>> {
-    let input = xutil::canonicalize_path(input)?;
+pub(crate) fn collect(input: &str) -> exfat_utils::Result<Vec<Path>> {
+    let input = crate::xutil::canonicalize_path(input)?;
     assert_path(&input)?;
 
-    let t = xutil::get_raw_file_type(&input)?;
+    let t = crate::xutil::get_raw_file_type(&input)?;
     assert!(!t.is_symlink());
     let prefix = if t.is_dir() {
         input.clone()
     } else if t.is_file() {
-        xutil::canonicalize_path(&xutil::get_dirpath(&input)?)?
+        crate::xutil::canonicalize_path(&crate::xutil::get_dirpath(&input)?)?
     } else {
-        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        return Err(Box::new(nix::errno::Errno::EINVAL));
     };
     assert_path(&prefix)?;
 
-    let t = xutil::get_raw_file_type(&prefix)?;
+    let t = crate::xutil::get_raw_file_type(&prefix)?;
     if t.is_dir() || t.is_file() {
-        walk_directory(&input, &prefix)
+        Ok(walk_directory(&input, &prefix)?)
     } else {
-        Err(std::io::Error::from(std::io::ErrorKind::InvalidInput))
+        Err(Box::new(nix::errno::Errno::EINVAL))
     }
 }
 
-fn walk_directory(input: &str, prefix: &str) -> std::io::Result<Vec<Path>> {
+fn walk_directory(input: &str, prefix: &str) -> exfat_utils::Result<Vec<Path>> {
     let mut v = vec![];
     for entry in walkdir::WalkDir::new(input)
         .into_iter()
         .filter_map(std::result::Result::ok)
     {
         let Some(f) = entry.path().to_str() else {
-            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+            return Err(Box::new(nix::errno::Errno::EINVAL));
         };
         assert_path(f)?;
         if f == prefix {
             continue;
         }
-        let t = xutil::get_raw_file_type(f)?;
+        let t = crate::xutil::get_raw_file_type(f)?;
         if t.is_dir() || t.is_file() {
             v.push(Path::new(f.to_string(), prefix.len(), t.is_dir()));
         } else {

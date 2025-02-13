@@ -1,7 +1,5 @@
-use exfat_utils::util;
-
 fn print_version(prog: &str) {
-    util::print_version(prog);
+    exfat_utils::util::print_version(prog);
     println!("Copyright (C) 2011-2023  Andrew Nayenko");
     println!("Copyright (C) 2024-  Tomohiro Kusumi");
 }
@@ -14,7 +12,7 @@ fn usage(prog: &str, gopt: &getopts::Options) {
 }
 
 fn main() {
-    if let Err(e) = util::init_std_logger() {
+    if let Err(e) = exfat_utils::util::init_std_logger() {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -44,7 +42,7 @@ fn main() {
     }
 
     let mut mopt = vec![];
-    if util::is_debug_set() {
+    if exfat_utils::util::is_debug_set() {
         mopt.push("--debug");
     }
 

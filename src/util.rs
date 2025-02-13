@@ -17,22 +17,19 @@ pub use get_node_mut;
 pub fn print_version(prog: &str) {
     println!(
         "{} {}.{}.{}",
-        get_basename(prog),
+        match get_basename(prog) {
+            Some(v) => v,
+            None => "???".to_string(),
+        },
         libexfat::VERSION[0],
         libexfat::VERSION[1],
         libexfat::VERSION[2]
     );
 }
 
-/// # Panics
 #[must_use]
-pub fn get_basename(f: &str) -> String {
-    std::path::Path::new(&f)
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string()
+pub fn get_basename(f: &str) -> Option<String> {
+    Some(std::path::Path::new(&f).file_name()?.to_str()?.to_string())
 }
 
 const DEBUG: &str = "DEBUG";

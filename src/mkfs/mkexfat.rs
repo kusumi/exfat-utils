@@ -1,10 +1,3 @@
-use crate::cbm;
-use crate::fat;
-use crate::rootdir;
-use crate::uct;
-use crate::vbr;
-use crate::MkfsParam;
-
 use std::io::Write;
 use std::slice::Iter;
 
@@ -42,43 +35,58 @@ impl FsObjectType {
 }
 
 pub(crate) trait FsObjectTrait {
-    fn new(param: MkfsParam) -> Self
+    fn new(param: crate::MkfsParam) -> Self
     where
         Self: Sized;
     fn get_alignment(&self) -> u64;
     fn get_size(
         &self,
         fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-    ) -> u64;
+    ) -> exfat_utils::Result<u64>;
     fn write(
         &self,
-        dev: &mut libexfat::device::ExfatDevice,
+        dev: &mut libexfat::device::Device,
         offset: u64,
         fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-    ) -> std::io::Result<()>;
+    ) -> exfat_utils::Result<()>;
 }
 
 fn alloc_fsobject(
-    param: &MkfsParam,
+    param: &crate::MkfsParam,
 ) -> std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>> {
     let mut fmap: std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>> =
         std::collections::HashMap::new();
-    fmap.insert(FsObjectType::Vbr1, Box::new(vbr::FsObject::new(*param)));
-    fmap.insert(FsObjectType::Vbr2, Box::new(vbr::FsObject::new(*param)));
-    fmap.insert(FsObjectType::Fat, Box::new(fat::FsObject::new(*param)));
-    fmap.insert(FsObjectType::Cbm, Box::new(cbm::FsObject::new(*param))); // clusters heap
-    fmap.insert(FsObjectType::Uct, Box::new(uct::FsObject::new(*param))); // clusters heap
+    fmap.insert(
+        FsObjectType::Vbr1,
+        Box::new(crate::vbr::FsObject::new(*param)),
+    );
+    fmap.insert(
+        FsObjectType::Vbr2,
+        Box::new(crate::vbr::FsObject::new(*param)),
+    );
+    fmap.insert(
+        FsObjectType::Fat,
+        Box::new(crate::fat::FsObject::new(*param)),
+    );
+    fmap.insert(
+        FsObjectType::Cbm,
+        Box::new(crate::cbm::FsObject::new(*param)),
+    ); // clusters heap
+    fmap.insert(
+        FsObjectType::Uct,
+        Box::new(crate::uct::FsObject::new(*param)),
+    ); // clusters heap
     fmap.insert(
         FsObjectType::Rootdir,
-        Box::new(rootdir::FsObject::new(*param)),
+        Box::new(crate::rootdir::FsObject::new(*param)),
     ); // clusters heap
     fmap
 }
 
 fn debug(
-    param: &MkfsParam,
+    param: &crate::MkfsParam,
     fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-) {
+) -> exfat_utils::Result<()> {
     log::debug!("param {param:?}");
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
@@ -86,41 +94,42 @@ fn debug(
             "{:?} alignment {:#x} size {:#x} position {:#x}",
             t,
             f.get_alignment(),
-            f.get_size(fmap),
-            get_position(t, fmap),
+            f.get_size(fmap)?,
+            get_position(t, fmap)?,
         );
     }
+    Ok(())
 }
 
 fn check_size(
     volume_size: u64,
     fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-) -> std::io::Result<()> {
-    let mut position = 0;
+) -> exfat_utils::Result<()> {
+    let mut position: u64 = 0;
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
         position = libexfat::round_up!(position, f.get_alignment());
-        position += f.get_size(fmap);
+        position += f.get_size(fmap)?;
     }
     if position > volume_size {
         let (value, unit) = libexfat::util::humanize_bytes(volume_size);
         log::error!("too small device ({value} {unit})");
-        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        return Err(Box::new(nix::errno::Errno::EINVAL));
     }
     Ok(())
 }
 
 fn erase_object(
-    dev: &mut libexfat::device::ExfatDevice,
+    dev: &mut libexfat::device::Device,
     block: &[u8],
     block_size: u64,
     start: u64,
     size: u64,
-) -> std::io::Result<()> {
+) -> exfat_utils::Result<()> {
     let mut offset = start;
     let mut i = 0;
     while i < size {
-        let buf = &block[..std::cmp::min(size - i, block_size).try_into().unwrap()];
+        let buf = &block[..std::cmp::min(size - i, block_size).try_into()?];
         if let Err(e) = dev.pwrite(buf, offset) {
             log::error!(
                 "failed to erase block {}/{} at {:#x}",
@@ -128,7 +137,7 @@ fn erase_object(
                 libexfat::div_round_up!(size, block_size),
                 start
             );
-            return Err(e);
+            return Err(Box::new(e));
         }
         offset += block_size;
         i += block_size;
@@ -137,57 +146,57 @@ fn erase_object(
 }
 
 fn erase(
-    dev: &mut libexfat::device::ExfatDevice,
+    dev: &mut libexfat::device::Device,
     fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-) -> std::io::Result<()> {
+) -> exfat_utils::Result<()> {
     let block_size = 1024 * 1024;
     let block = vec![0; block_size];
-    let mut position = 0;
+    let mut position: u64 = 0;
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
         position = libexfat::round_up!(position, f.get_alignment());
         erase_object(
             dev,
             &block,
-            block_size.try_into().unwrap(),
+            block_size.try_into()?,
             position,
-            f.get_size(fmap),
+            f.get_size(fmap)?,
         )?;
-        position += f.get_size(fmap);
+        position += f.get_size(fmap)?;
     }
     Ok(())
 }
 
 fn create(
-    dev: &mut libexfat::device::ExfatDevice,
+    dev: &mut libexfat::device::Device,
     fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-) -> std::io::Result<()> {
-    let mut position = 0;
+) -> exfat_utils::Result<()> {
+    let mut position: u64 = 0;
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
         position = libexfat::round_up!(position, f.get_alignment());
         f.write(dev, position, fmap)?;
-        position += f.get_size(fmap);
+        position += f.get_size(fmap)?;
     }
     Ok(())
 }
 
 pub(crate) fn mkfs(
-    dev: &mut libexfat::device::ExfatDevice,
-    param: &MkfsParam,
-) -> std::io::Result<()> {
+    dev: &mut libexfat::device::Device,
+    param: &crate::MkfsParam,
+) -> exfat_utils::Result<()> {
     let fmap = alloc_fsobject(param);
-    debug(param, &fmap);
+    debug(param, &fmap)?;
     check_size(param.volume_size, &fmap)?;
 
     print!("Creating... ");
-    std::io::stdout().flush().unwrap();
+    std::io::stdout().flush()?;
     erase(dev, &fmap)?;
     create(dev, &fmap)?;
     println!("done.");
 
     print!("Flushing... ");
-    std::io::stdout().flush().unwrap();
+    std::io::stdout().flush()?;
     dev.fsync()?;
     println!("done.");
 
@@ -197,15 +206,15 @@ pub(crate) fn mkfs(
 pub(crate) fn get_position(
     fst: &FsObjectType,
     fmap: &std::collections::HashMap<FsObjectType, Box<dyn FsObjectTrait>>,
-) -> u64 {
-    let mut position = 0;
+) -> exfat_utils::Result<u64> {
+    let mut position: u64 = 0;
     for t in FsObjectType::iterator() {
         let f = get_fso!(fmap, t);
         position = libexfat::round_up!(position, f.get_alignment());
         if *t == *fst {
-            return position;
+            return Ok(position);
         }
-        position += f.get_size(fmap);
+        position += f.get_size(fmap)?;
     }
     panic!("unknown object");
 }
