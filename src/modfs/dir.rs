@@ -78,7 +78,6 @@ fn walk_directory(input: &str, prefix: &str) -> exfat_utils::Result<Vec<Path>> {
             v.push(Path::new(f.to_string(), prefix.len(), t.is_dir()));
         } else {
             log::warn!("ignore unsupported file: {f} ({t:?})");
-            continue;
         }
     }
     Ok(v)
