@@ -89,12 +89,12 @@ fn dump_sb(spec: &str) -> libexfat::Result<()> {
 
 fn dump_full(spec: &str, used_sectors: bool) -> libexfat::Result<()> {
     let mut mopt = vec!["--mode", "ro"];
-    if exfat_utils::util::is_debug_set() {
+    if libfs::is_debug_set() {
         mopt.push("--debug");
     }
 
     let ef = libexfat::mount(spec, &mopt)?;
-    let free_clusters = ef.get_free_clusters();
+    let free_clusters = ef.get_free_clusters()?;
     let sb = ef.get_super_block();
     let free_sectors = free_clusters << sb.spc_bits;
 
@@ -120,7 +120,7 @@ fn dump_full(spec: &str, used_sectors: bool) -> libexfat::Result<()> {
 
 fn dump_file_fragments(spec: &str, path: &str) -> libexfat::Result<()> {
     let mut mopt = vec!["--mode", "ro"];
-    if exfat_utils::util::is_debug_set() {
+    if libfs::is_debug_set() {
         mopt.push("--debug");
     }
 

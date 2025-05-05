@@ -1,6 +1,6 @@
 [package]
 name = "exfat-utils"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -39,6 +39,7 @@ byteorder = "1.5.0"
 env_logger = "0.11.3"
 getopts = "0.2.21"
 libexfat = { git = "https://github.com/kusumi/libexfat" }
+libfs = { git = "https://github.com/kusumi/libfs" }
 log = "0.4.22"
 nix = { version = "0.29.0", features = ["fs", "ioctl"] }
 path-clean = "1.0.1"

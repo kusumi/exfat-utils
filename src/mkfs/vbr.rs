@@ -95,7 +95,7 @@ impl crate::mkexfat::FsObjectTrait for FsObject {
         let mut offset = offset;
 
         let sb = self.init_sb(fmap)?;
-        let buf = libexfat::util::any_as_u8_slice(&sb);
+        let buf = libfs::cast::as_u8_slice(&sb);
         if let Err(e) = dev.pwrite(buf, offset) {
             log::error!("failed to write super block sector");
             return Err(Box::new(e));

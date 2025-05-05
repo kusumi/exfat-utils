@@ -8,7 +8,7 @@ fn print_version() {
 fn print_super_block(ef: &libexfat::exfat::Exfat) {
     let sb = ef.get_super_block();
     let total_space = u64::from_le(sb.sector_count) * sb.get_sector_size();
-    let avail_space = u64::from(ef.get_free_clusters()) * sb.get_cluster_size();
+    let avail_space = u64::from(ef.get_free_clusters().unwrap()) * sb.get_cluster_size();
     println!(
         "File system version           {}.{}",
         sb.version_major, sb.version_minor
@@ -40,7 +40,7 @@ fn nodeck(ef: &mut libexfat::exfat::Exfat, nid: libexfat::node::Nid) -> exfat_ut
             );
             return Err(Box::new(nix::errno::Errno::EINVAL));
         }
-        if !ef.is_cluster_allocated((c - libexfat::fs::EXFAT_FIRST_DATA_CLUSTER).try_into()?) {
+        if !ef.is_cluster_allocated((c - libexfat::fs::EXFAT_FIRST_DATA_CLUSTER).try_into()?)? {
             log::error!(
                 "cluster {c:#x} of file '{}' is not allocated",
                 exfat_utils::util::get_node!(ef, nid).get_name()
@@ -223,7 +223,7 @@ fn main() {
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if libfs::is_debug_set() {
         mopt.push("--debug");
     }
 

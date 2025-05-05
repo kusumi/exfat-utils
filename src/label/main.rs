@@ -42,7 +42,7 @@ fn main() {
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if libfs::is_debug_set() {
         mopt.push("--debug");
     }
 

@@ -68,7 +68,7 @@ fn modfs(spec: &str, input: &[&str], param: &ModfsParam) -> exfat_utils::Result<
     }
 
     let mut mopt = vec![];
-    if exfat_utils::util::is_debug_set() {
+    if libfs::is_debug_set() {
         mopt.push("--debug");
     }
     let mut ef = libexfat::mount(spec, &mopt)?;

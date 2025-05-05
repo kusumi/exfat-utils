@@ -45,14 +45,14 @@ impl crate::mkexfat::FsObjectTrait for FsObject {
                 + libexfat::div_round_up!(rootdir.get_size(fmap)?, self.param.cluster_size),
         )?;
         let count = libexfat::round_up!(allocated_clusters, crate::CHAR_BIT);
-        let mut bitmap = libexfat::bitmap::alloc(count);
+        let mut bitmap = libfs::bitmap::Bitmap::new(count)?;
         for i in 0..count {
             if i < allocated_clusters {
-                libexfat::bitmap::set(&mut bitmap, i);
+                bitmap.set(i)?;
             }
         }
 
-        if let Err(e) = dev.pwrite(&bitmap, offset) {
+        if let Err(e) = dev.pwrite(bitmap.as_bytes(), offset) {
             log::error!(
                 "failed to write bitmap of {} bytes",
                 count / crate::CHAR_BIT
